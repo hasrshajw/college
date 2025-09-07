@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - College Management System</title>
+    <style>
+        /* --- All CSS is included here --- */
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --warning-color: #f39c12;
+            --light-bg: #f4f7f9; --dark-text: #2c3e50; --light-text: #7f8c8d;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 900px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2, h3 { color: var(--dark-text); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .header-info p { margin: 0; font-size: 0.9em; color: var(--light-text); }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-logout { background-color: var(--danger-color); }
+        .btn-edit { background-color: var(--primary-color); }
+        .btn-success { background-color: var(--success-color); }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        
+        /* Attendance Styles */
+        .attendance-controls { display: flex; gap: 1em; margin-bottom: 2em; align-items: center; flex-wrap: wrap; }
+        #attendance-sheet-container { margin-top: 1em; }
+        .attendance-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
+        .attendance-row:last-child { border-bottom: none; }
+        .attendance-row span { font-weight: 500; }
+        .attendance-radios label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
+        .status-message { padding: 1em; border-radius: 5px; margin-top: 1em; text-align: center; }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-loading { background-color: #e2e3e5; color: #383d41; }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;"> <!-- Hide container until user is verified -->
+        <!-- Header for logged-in users -->
+        <div id="app-header" class="header">
+            <div class="header-info">
+                <h1 id="header-title">Teacher Dashboard</h1>
+                <p>Logged in as: <strong id="user-email"></strong></p>
+            </div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+
+        <!-- Teacher Dashboard View -->
+        <div id="teacher-view" class="teacher-dashboard">
+            <h2>Attendance Management</h2>
+            <div class="attendance-controls">
+                <select id="teacher-class-select">
+                    <option value="">-- Select Class --</option><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option><option value="5">5th</option><option value="6">6th</option><option value="7">7th</option><option value="8">8th</option><option value="9">9th</option><option value="10">10th</option>
+                </select>
+                <input type="date" id="attendance-date">
+                <button id="load-attendance-btn" class="btn btn-edit">Load Students</button>
+            </div>
+            <div id="attendance-sheet-container"></div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // --- DOM Elements ---
+        const mainContainer = document.querySelector('.container');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userEmailEl = document.getElementById('user-email');
+        const teacherClassSelect = document.getElementById('teacher-class-select');
+        const attendanceDateEl = document.getElementById('attendance-date');
+        const loadAttendanceBtn = document.getElementById('load-attendance-btn');
+        const attendanceSheetContainer = document.getElementById('attendance-sheet-container');
+
+        // --- Authentication & Page Protection ---
+        auth.onAuthStateChanged(async user => {
+            if (user) {
+                // User is logged in, now verify their role
+                const userDoc = await db.collection('users').doc(user.email).get();
+                if (userDoc.exists && userDoc.data().role === 'teacher') {
+                    // User is a verified teacher, show the page
+                    mainContainer.style.display = 'block';
+                    userEmailEl.textContent = user.email;
+                    initializeTeacherDashboard();
+                } else {
+                    // User is not a teacher, log them out and redirect
+                    alert('Access Denied. You do not have teacher permissions.');
+                    auth.signOut().then(() => window.location.href = 'index.html');
+                }
+            } else {
+                // No user is logged in, redirect to login page
+                window.location.href = 'index.html';
+            }
+        });
+
+        logoutBtn.onclick = () => {
+            auth.signOut().then(() => {
+                window.location.href = 'index.html';
+            });
+        };
+
+        // --- Dashboard Initialization ---
+        function initializeTeacherDashboard() {
+            attendanceDateEl.valueAsDate = new Date(); // Set date to today
+            loadAttendanceBtn.onclick = loadAttendanceSheet;
+        }
+
+        // --- Teacher: Attendance Functions ---
+        async function loadAttendanceSheet() {
+            const selectedClass = teacherClassSelect.value;
+            const selectedDate = attendanceDateEl.value;
+
+            if (!selectedClass || !selectedDate) {
+                alert('Please select a class and a date.');
+                return;
+            }
+
+            attendanceSheetContainer.innerHTML = `<div class="status-message status-loading">Loading students...</div>`;
+
+            // 1. Fetch students for the selected class
+            const studentSnap = await db.collection('students').where('class', '==', selectedClass).get();
+            const students = studentSnap.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            if (students.length === 0) {
+                attendanceSheetContainer.innerHTML = `<p>No students found for Class ${selectedClass}.</p>`;
+                return;
+            }
+
+            // 2. Fetch existing attendance records for that day
+            const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`;
+            const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get();
+            const records = attendanceDoc.exists ? attendanceDoc.data().records : {};
+
+            // 3. Build the HTML for the attendance sheet
+            let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3><div id="attendance-form">`;
+            students.forEach(s => {
+                const status = records[s.id] || 'present'; // Default to 'present'
+                sheetHtml += `
+                    <div class="attendance-row" data-student-id="${s.id}">
+                        <span>${s.name} (${s.rollNo})</span>
+                        <div class="attendance-radios">
+                            <input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status === 'present' ? 'checked' : ''}>
+                            <label for="p_${s.id}">Present</label>
+                            <input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status === 'absent' ? 'checked' : ''}>
+                            <label for="a_${s.id}">Absent</label>
+                        </div>
+                    </div>`;
+            });
+            sheetHtml += `</div><button id="save-attendance-btn" class="btn btn-success" style="margin-top:1.5em;">Save Attendance</button>`;
+            attendanceSheetContainer.innerHTML = sheetHtml;
+
+            // 4. Attach event listener to the newly created save button
+            document.getElementById('save-attendance-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate);
+        }
+
+        async function saveAttendance(docId, aClass, aDate) {
+            const saveButton = document.getElementById('save-attendance-btn');
+            saveButton.textContent = 'Saving...';
+            saveButton.disabled = true;
+
+            const records = {};
+            document.querySelectorAll('.attendance-row').forEach(row => {
+                const studentId = row.dataset.studentId;
+                const selectedValue = document.querySelector(`input[name="s_${studentId}"]:checked`).value;
+                records[studentId] = selectedValue;
+            });
+            
+            try {
+                await db.collection('attendance').doc(docId).set({
+                    class: aClass,
+                    date: aDate,
+                    records: records
+                });
+                saveButton.textContent = 'Saved!';
+                saveButton.classList.remove('btn-success');
+                saveButton.classList.add('btn-edit'); // Change color to indicate success
+                setTimeout(() => {
+                    saveButton.textContent = 'Save Attendance';
+                    saveButton.disabled = false;
+                    saveButton.classList.remove('btn-edit');
+                    saveButton.classList.add('btn-success');
+                }, 2000);
+            } catch (error) {
+                alert(`Error saving attendance: ${error.message}`);
+                saveButton.textContent = 'Save Attendance';
+                saveButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -64,12 +64,12 @@
             </div>
             
             <div id="teachers-content" class="content">
-                 <div class="teacher-form-container"><h2>Create Teacher</h2><form id="create-teacher-form"><label>Full Name:</label><input type="text" id="teacher-name" required><label>Email:</label><input type="email" id="teacher-email" required placeholder="Must match Google account"><button type="submit">Create Teacher</button></form></div>
+                 <div class="teacher-form-container"><h2>Create Teacher</h2><form id="create-teacher-form"><label>Full Name:</label><input type="text" id="teacher-name" required><label>Email:</label><input type="email" id="teacher-email" required placeholder="Must match Google account"><button type="submit">Create Teacher</button><p id="create-teacher-status"></p></form></div>
                  <div class="list-container"><h2>Existing Teachers</h2><div id="teacher-list"></div></div>
             </div>
             
             <div id="subjects-content" class="content">
-                <div class="subject-form-container"><h2>Create Subject</h2><form id="create-subject-form"><label>Class:</label><select id="subject-class" required><option value="">-- Select Class --</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><label>Subject Name:</label><input type="text" id="subject-name" required><label>Assign Teacher:</label><select id="subject-teacher" required><option value="">-- Select Teacher --</option></select><button type="submit">Create Subject</button><p id="create-subject-status"></p></form></div>
+                <div class="subject-form-container"><h2>Create Subject</h2><form id="create-subject-form"><label>Class:</label><select id="subject-class" required><option value="">-- Class --</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><label>Subject Name:</label><input type="text" id="subject-name" required><label>Assign Teacher:</label><select id="subject-teacher" required><option value="">-- Select Teacher --</option></select><button type="submit">Create Subject</button><p id="create-subject-status"></p></form></div>
                 <div class="list-container"><label>Filter by Class:</label><select id="subject-class-filter"><option value="all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><h2>Existing Subjects</h2><div id="subject-list"></div></div>
             </div>
 
@@ -102,6 +102,13 @@
         const mainContainer = document.querySelector('.container');
         const userEmailEl = document.getElementById('user-email');
         const logoutBtn = document.getElementById('logout-btn');
+        // Students
+        const createStudentForm = document.getElementById('create-student-form');
+        const studentListEl = document.getElementById('student-list');
+        // Teachers
+        const createTeacherForm = document.getElementById('create-teacher-form');
+        const createTeacherStatusEl = document.getElementById('create-teacher-status');
+        const teacherListEl = document.getElementById('teacher-list');
         // Subjects
         const createSubjectForm = document.getElementById('create-subject-form');
         const subjectTeacherSelect = document.getElementById('subject-teacher');
@@ -119,7 +126,7 @@
         const examListEl = document.getElementById('exam-list');
 
         // --- Global State ---
-        let allUnsubscribes = [], teachersCache = [], subjectsCache = [], examsCache = [];
+        let allUnsubscribes = [], studentsCache = [], teachersCache = [], subjectsCache = [], examsCache = [];
         let currentExamMarks = [];
 
         // --- Auth & Initialization ---
@@ -130,15 +137,19 @@
                 initializeAdminDashboard();
             } else { window.location.href = 'index.html'; }
         });
+
         logoutBtn.onclick = () => {
             allUnsubscribes.forEach(unsub => unsub());
             auth.signOut().then(() => window.location.href = 'index.html');
         };
+
         function initializeAdminDashboard() {
+            listenForStudents();
             listenForTeachers();
             listenForSubjects();
             listenForExams();
-            setupEventListeners();
+            setupFormEventListeners();
+            setupListEventListeners();
         }
         
         // --- UI Control ---
@@ -150,9 +161,17 @@
         }
 
         // --- Data Listeners ---
+        function listenForStudents() {
+            const unsub = db.collection('students').orderBy('name').onSnapshot(snap => {
+                studentsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderStudentList();
+            });
+            allUnsubscribes.push(unsub);
+        }
         function listenForTeachers() {
             const unsub = db.collection('teachers').orderBy('name').onSnapshot(snap => {
                 teachersCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderTeacherList();
                 populateTeacherDropdowns();
             });
             allUnsubscribes.push(unsub);
@@ -173,110 +192,79 @@
         }
 
         // --- Render Functions ---
+        function renderStudentList() {
+            studentListEl.innerHTML = studentsCache.map(s => `<div class="item-card"><div><p><strong>${s.name}</strong> (Roll: ${s.rollNo}, Class: ${s.class})</p></div><button class="btn btn-sm btn-delete" data-student-id="${s.id}">Delete</button></div>`).join('') || '<p>No students created yet.</p>';
+        }
+        function renderTeacherList() {
+            teacherListEl.innerHTML = teachersCache.map(t => `<div class="item-card"><div><p><strong>${t.name}</strong></p><p><small>${t.email}</small></p></div><button class="btn btn-sm btn-delete" data-teacher-id="${t.id}" data-teacher-email="${t.email}">Delete</button></div>`).join('') || '<p>No teachers created yet.</p>';
+        }
         function populateTeacherDropdowns() {
             const currentSelection = subjectTeacherSelect.value;
             subjectTeacherSelect.innerHTML = '<option value="">-- Select Teacher --</option>';
-            teachersCache.forEach(teacher => {
-                subjectTeacherSelect.innerHTML += `<option value="${teacher.id}" data-teacher-name="${teacher.name}">${teacher.name}</option>`;
-            });
+            teachersCache.forEach(teacher => subjectTeacherSelect.innerHTML += `<option value="${teacher.id}" data-teacher-name="${teacher.name}">${teacher.name}</option>`);
             subjectTeacherSelect.value = currentSelection;
         }
         function renderSubjectList() {
             const filter = subjectClassFilterEl.value;
             const filtered = (filter === 'all') ? subjectsCache : subjectsCache.filter(s => s.className === filter);
-            subjectListEl.innerHTML = filtered.map(s => `<div class="item-card"><div><p><strong>Subject:</strong> ${s.subjectName} (Class ${s.className})</p><p><strong>Teacher:</strong> ${s.teacherName}</p></div><button class="btn btn-sm btn-delete" data-subject-id="${s.id}">Delete</button></div>`).join('') || '<p>No subjects found for this class.</p>';
+            subjectListEl.innerHTML = filtered.map(s => `<div class="item-card"><div><p><strong>${s.subjectName}</strong> (Class ${s.className})</p><p><small>Teacher: ${s.teacherName || 'Unassigned'}</small></p></div><button class="btn btn-sm btn-delete" data-subject-id="${s.id}">Delete</button></div>`).join('') || '<p>No subjects found for this class.</p>';
         }
         function renderExamList() {
             examListEl.innerHTML = examsCache.map(exam => `<div class="item-card"><div><p><strong>${exam.examName}</strong></p></div><button class="btn btn-sm btn-delete" data-exam-id="${exam.id}">Delete</button></div>`).join('') || '<p>No exams created yet.</p>';
         }
 
-        // --- Event Listeners Setup ---
-        function setupEventListeners() {
+        // --- Event Listener Setup ---
+        function setupFormEventListeners() {
+            createStudentForm.addEventListener('submit', handleCreateStudent);
+            createTeacherForm.addEventListener('submit', handleCreateTeacher);
             createSubjectForm.addEventListener('submit', handleCreateSubject);
             subjectClassFilterEl.addEventListener('change', renderSubjectList);
-            subjectListEl.addEventListener('click', e => { if (e.target.dataset.subjectId) handleDelete(e.target.dataset.subjectId, 'subject', 'subjects'); });
             createExamForm.addEventListener('submit', handleCreateExam);
             examClassSelect.addEventListener('change', handleExamClassChange);
             addExamSubjectBtn.addEventListener('click', handleAddExamSubject);
             examMarksListEl.addEventListener('click', handleRemoveExamSubject);
-            examListEl.addEventListener('click', e => { if (e.target.dataset.examId) handleDelete(e.target.dataset.examId, 'exam', 'exams'); });
+        }
+        function setupListEventListeners() {
+            studentListEl.addEventListener('click', e => { if(e.target.dataset.studentId) handleDelete(e.target.dataset.studentId, 'student', 'students'); });
+            teacherListEl.addEventListener('click', e => { if(e.target.dataset.teacherId) handleSafeTeacherDelete(e.target.dataset.teacherId, e.target.dataset.teacherEmail); });
+            subjectListEl.addEventListener('click', e => { if(e.target.dataset.subjectId) handleDelete(e.target.dataset.subjectId, 'subject', 'subjects'); });
+            examListEl.addEventListener('click', e => { if(e.target.dataset.examId) handleDelete(e.target.dataset.examId, 'exam', 'exams'); });
         }
 
-        // --- Handler Functions ---
-        async function handleCreateSubject(e) {
-            e.preventDefault();
-            createSubjectStatusEl.textContent = 'Creating...';
-            const selectedOpt = subjectTeacherSelect.options[subjectTeacherSelect.selectedIndex];
-            try {
-                await db.collection('subjects').add({
-                    className: document.getElementById('subject-class').value,
-                    subjectName: document.getElementById('subject-name').value.trim(),
-                    teacherId: selectedOpt.value,
-                    teacherName: selectedOpt.dataset.teacherName
-                });
-                createSubjectStatusEl.textContent = 'Subject created!';
-                createSubjectForm.reset();
-            } catch (error) { createSubjectStatusEl.textContent = `Error: ${error.message}`; }
-            finally { setTimeout(() => createSubjectStatusEl.textContent = '', 3000); }
-        }
+        // --- Handler Functions (Create) ---
+        async function handleCreateStudent(e) { e.preventDefault(); try { await db.collection('students').add({ name: e.target.name.value, rollNo: e.target.rollNo.value, class: e.target.class.value }); createStudentForm.reset(); } catch (err) { alert(`Error: ${err.message}`); } }
+        async function handleCreateTeacher(e) { e.preventDefault(); createTeacherStatusEl.textContent='Creating...'; try { const batch = db.batch(); batch.set(db.collection('teachers').doc(), { name: e.target['teacher-name'].value, email: e.target['teacher-email'].value }); batch.set(db.collection('users').doc(e.target['teacher-email'].value), { role: 'teacher' }); await batch.commit(); createTeacherStatusEl.textContent = 'Teacher created!'; createTeacherForm.reset(); } catch(err){ createTeacherStatusEl.textContent = `Error: ${err.message}`;} finally { setTimeout(()=>createTeacherStatusEl.textContent='', 3000);} }
+        async function handleCreateSubject(e) { e.preventDefault(); createSubjectStatusEl.textContent='Creating...'; const selectedOpt = subjectTeacherSelect.options[subjectTeacherSelect.selectedIndex]; try { await db.collection('subjects').add({ className: document.getElementById('subject-class').value, subjectName: document.getElementById('subject-name').value.trim(), teacherId: selectedOpt.value, teacherName: selectedOpt.dataset.teacherName }); createSubjectStatusEl.textContent = 'Subject created!'; createSubjectForm.reset(); } catch (err) { createSubjectStatusEl.textContent = `Error: ${err.message}`; } finally { setTimeout(() => createSubjectStatusEl.textContent = '', 3000); } }
+        async function handleCreateExam(e) { e.preventDefault(); const examName = document.getElementById('exam-name').value.trim(); if (!examName || currentExamMarks.length === 0) { alert('Please provide an exam name and configure at least one subject.'); return; } createExamStatusEl.textContent = 'Creating...'; const marksStructure = {}; currentExamMarks.forEach(item => { const key = `CLASS_${item.class}_${item.subject.replace(/\s+/g, '_').toUpperCase()}`; marksStructure[key] = item.marks; }); try { await db.collection('exams').add({ examName, marksStructure, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); createExamStatusEl.textContent = 'Exam created!'; createExamForm.reset(); currentExamMarks = []; renderCurrentExamMarks(); examSubjectSelect.disabled = true; } catch (err) { createExamStatusEl.textContent = `Error: ${err.message}`; } finally { setTimeout(() => createExamStatusEl.textContent = '', 3000); } }
         
-        function handleExamClassChange() {
-            const selectedClass = examClassSelect.value;
-            examSubjectSelect.innerHTML = '<option value="">Subject</option>';
-            examSubjectSelect.disabled = true;
-            if (!selectedClass) return;
-            const subjectsForClass = subjectsCache.filter(s => s.className === selectedClass);
-            if (subjectsForClass.length > 0) {
-                subjectsForClass.forEach(s => examSubjectSelect.innerHTML += `<option value="${s.subjectName}">${s.subjectName}</option>`);
-                examSubjectSelect.disabled = false;
+        // --- Handler Functions (Exams Form) ---
+        function handleExamClassChange() { const selectedClass = examClassSelect.value; examSubjectSelect.innerHTML = '<option value="">Subject</option>'; examSubjectSelect.disabled = true; if (!selectedClass) return; const subjectsForClass = subjectsCache.filter(s => s.className === selectedClass); if (subjectsForClass.length > 0) { subjectsForClass.forEach(s => examSubjectSelect.innerHTML += `<option value="${s.subjectName}">${s.subjectName}</option>`); examSubjectSelect.disabled = false; } }
+        function handleAddExamSubject() { const className = examClassSelect.value, subjectName = examSubjectSelect.value, maxMarks = examMaxMarksInput.value; if (!className || !subjectName || !maxMarks) { alert('Please select a class, subject, and enter max marks.'); return; } if (currentExamMarks.some(item => item.class === className && item.subject === subjectName)) { alert('This subject has already been added.'); return; } currentExamMarks.push({ class: className, subject: subjectName, marks: parseInt(maxMarks) }); renderCurrentExamMarks(); examMaxMarksInput.value = ''; }
+        function renderCurrentExamMarks() { examMarksListEl.innerHTML = currentExamMarks.map((item, index) => `<div class="marks-item"><span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span><button type="button" class="btn btn-sm btn-delete" data-index="${index}">Remove</button></div>`).join(''); }
+        function handleRemoveExamSubject(e) { if (e.target.dataset.index) { currentExamMarks.splice(e.target.dataset.index, 1); renderCurrentExamMarks(); } }
+        
+        // --- Handler Functions (Delete) ---
+        async function handleSafeTeacherDelete(teacherId, teacherEmail) {
+            if (!confirm(`Are you sure you want to delete this teacher? They will be unassigned from all their subjects.`)) return;
+            const batch = db.batch();
+            try {
+                // 1. Find all subjects taught by this teacher
+                const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherId).get();
+                // 2. For each subject, update it to be unassigned
+                subjectsQuery.forEach(doc => {
+                    const subjectRef = db.collection('subjects').doc(doc.id);
+                    batch.update(subjectRef, { teacherId: null, teacherName: null });
+                });
+                // 3. Delete the teacher's main profile and user role
+                batch.delete(db.collection('teachers').doc(teacherId));
+                batch.delete(db.collection('users').doc(teacherEmail));
+                // 4. Commit all changes at once
+                await batch.commit();
+                alert('Teacher deleted and unassigned from subjects successfully.');
+            } catch (err) {
+                alert(`Error deleting teacher: ${err.message}`);
             }
         }
-
-        function handleAddExamSubject() {
-            const className = examClassSelect.value, subjectName = examSubjectSelect.value, maxMarks = examMaxMarksInput.value;
-            if (!className || !subjectName || !maxMarks) { alert('Please select a class, subject, and enter max marks.'); return; }
-            if (currentExamMarks.some(item => item.class === className && item.subject === subjectName)) { alert('This subject has already been added.'); return; }
-            currentExamMarks.push({ class: className, subject: subjectName, marks: parseInt(maxMarks) });
-            renderCurrentExamMarks();
-            examMaxMarksInput.value = '';
-        }
-        
-        function renderCurrentExamMarks() {
-            examMarksListEl.innerHTML = currentExamMarks.map((item, index) => `<div class="marks-item"><span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span><button type="button" class="btn btn-sm btn-delete" data-index="${index}">Remove</button></div>`).join('');
-        }
-
-        function handleRemoveExamSubject(e) {
-            if (e.target.dataset.index) {
-                currentExamMarks.splice(e.target.dataset.index, 1);
-                renderCurrentExamMarks();
-            }
-        }
-        
-        async function handleCreateExam(e) {
-            e.preventDefault();
-            const examName = document.getElementById('exam-name').value.trim();
-            if (!examName || currentExamMarks.length === 0) { alert('Please provide an exam name and configure at least one subject.'); return; }
-            createExamStatusEl.textContent = 'Creating...';
-            const marksStructure = {};
-            currentExamMarks.forEach(item => {
-                const key = `CLASS_${item.class}_${item.subject.replace(/\s+/g, '_').toUpperCase()}`;
-                marksStructure[key] = item.marks;
-            });
-            try {
-                await db.collection('exams').add({
-                    examName,
-                    marksStructure,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                createExamStatusEl.textContent = 'Exam created successfully!';
-                createExamForm.reset();
-                currentExamMarks = [];
-                renderCurrentExamMarks();
-                examSubjectSelect.disabled = true;
-            } catch (error) { createExamStatusEl.textContent = `Error: ${error.message}`; }
-            finally { setTimeout(() => createExamStatusEl.textContent = '', 3000); }
-        }
-
         function handleDelete(id, itemName, collectionName) {
             if (confirm(`Are you sure you want to delete this ${itemName}?`)) {
                 db.collection(collectionName).doc(id).delete().catch(err => alert(`Error: ${err.message}`));

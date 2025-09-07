@@ -28,41 +28,56 @@
         .btn-edit { background-color: var(--primary-color); }
         .btn-success { background-color: var(--success-color); }
         input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        .content { display: none; }
+        .content.active { display: block; }
+        .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
+        .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
         
-        /* Attendance Styles */
-        .attendance-controls { display: flex; gap: 1em; margin-bottom: 2em; align-items: center; flex-wrap: wrap; }
-        #attendance-sheet-container { margin-top: 1em; }
-        .attendance-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
-        .attendance-row:last-child { border-bottom: none; }
-        .attendance-row span { font-weight: 500; }
-        .attendance-radios label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
+        .controls-grid { display: flex; gap: 1em; margin-bottom: 2em; align-items: center; flex-wrap: wrap; }
+        .sheet-container { margin-top: 1em; }
+        .data-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
+        .data-row:last-child { border-bottom: none; }
+        .data-row span { font-weight: 500; flex: 1; }
+        .input-group label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
+        input[type="number"] { width: 80px; text-align: center; }
         .status-message { padding: 1em; border-radius: 5px; margin-top: 1em; text-align: center; }
-        .status-success { background-color: #d4edda; color: #155724; }
         .status-loading { background-color: #e2e3e5; color: #383d41; }
     </style>
 </head>
 <body>
     <div class="container" style="display: none;"> <!-- Hide container until user is verified -->
-        <!-- Header for logged-in users -->
         <div id="app-header" class="header">
-            <div class="header-info">
-                <h1 id="header-title">Teacher Dashboard</h1>
-                <p>Logged in as: <strong id="user-email"></strong></p>
-            </div>
+            <div class="header-info"><h1 id="header-title">Teacher Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
             <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
 
-        <!-- Teacher Dashboard View -->
-        <div id="teacher-view" class="teacher-dashboard">
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('attendance')">Attendance</button>
+            <button class="tab-button" onclick="showTab('marks')">Enter Marks</button>
+        </div>
+
+        <!-- Attendance Tab Content -->
+        <div id="attendance-content" class="content active">
             <h2>Attendance Management</h2>
-            <div class="attendance-controls">
-                <select id="teacher-class-select">
-                    <option value="">-- Select Class --</option><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option><option value="5">5th</option><option value="6">6th</option><option value="7">7th</option><option value="8">8th</option><option value="9">9th</option><option value="10">10th</option>
-                </select>
+            <div class="controls-grid">
+                <select id="teacher-class-select-att"><option value="">-- Select Class --</option> ... </select>
                 <input type="date" id="attendance-date">
-                <button id="load-attendance-btn" class="btn btn-edit">Load Students</button>
+                <button id="load-attendance-btn" class="btn btn-edit">Load for Attendance</button>
             </div>
-            <div id="attendance-sheet-container"></div>
+            <div id="attendance-sheet-container" class="sheet-container"></div>
+        </div>
+
+        <!-- Marks Entry Tab Content -->
+        <div id="marks-content" class="content">
+            <h2>Marks Entry</h2>
+            <div class="controls-grid">
+                <select id="teacher-class-select-marks"><option value="">-- Select Class --</option> ... </select>
+                <select id="exam-select" disabled><option value="">-- Select Exam --</option></select>
+                <select id="subject-select-marks" disabled><option value="">-- Select Subject --</option></select>
+                <button id="load-marks-btn" class="btn btn-edit">Load for Marks Entry</button>
+            </div>
+            <div id="marks-sheet-container" class="sheet-container"></div>
         </div>
     </div>
 
@@ -72,15 +87,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        // --- Firebase Configuration ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
-            authDomain: "collage-management-696b3.firebaseapp.com",
-            projectId: "collage-management-696b3",
-            storageBucket: "collage-management-696b3.firebasestorage.app",
-            messagingSenderId: "489625618034",
-            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
-        };
+        // Firebase Config
+        const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -89,127 +97,206 @@
         const mainContainer = document.querySelector('.container');
         const logoutBtn = document.getElementById('logout-btn');
         const userEmailEl = document.getElementById('user-email');
-        const teacherClassSelect = document.getElementById('teacher-class-select');
-        const attendanceDateEl = document.getElementById('attendance-date');
-        const loadAttendanceBtn = document.getElementById('load-attendance-btn');
-        const attendanceSheetContainer = document.getElementById('attendance-sheet-container');
+        // Attendance
+        const attClassSelect = document.getElementById('teacher-class-select-att');
+        const attDateEl = document.getElementById('attendance-date');
+        const loadAttBtn = document.getElementById('load-attendance-btn');
+        const attSheetContainer = document.getElementById('attendance-sheet-container');
+        // Marks
+        const marksClassSelect = document.getElementById('teacher-class-select-marks');
+        const examSelect = document.getElementById('exam-select');
+        const subjectSelect = document.getElementById('subject-select-marks');
+        const loadMarksBtn = document.getElementById('load-marks-btn');
+        const marksSheetContainer = document.getElementById('marks-sheet-container');
 
-        // --- Authentication & Page Protection ---
+        // --- Global State ---
+        let teacherProfile = null;
+        let examsCache = [];
+        let assignedSubjectsCache = [];
+
+        // --- Auth & Initialization ---
         auth.onAuthStateChanged(async user => {
             if (user) {
-                // User is logged in, now verify their role
                 const userDoc = await db.collection('users').doc(user.email).get();
                 if (userDoc.exists && userDoc.data().role === 'teacher') {
-                    // User is a verified teacher, show the page
                     mainContainer.style.display = 'block';
                     userEmailEl.textContent = user.email;
-                    initializeTeacherDashboard();
+                    await initializeTeacherDashboard(user.email);
                 } else {
-                    // User is not a teacher, log them out and redirect
-                    alert('Access Denied. You do not have teacher permissions.');
                     auth.signOut().then(() => window.location.href = 'index.html');
                 }
             } else {
-                // No user is logged in, redirect to login page
                 window.location.href = 'index.html';
             }
         });
 
-        logoutBtn.onclick = () => {
-            auth.signOut().then(() => {
-                window.location.href = 'index.html';
-            });
-        };
+        async function initializeTeacherDashboard(email) {
+            // Find teacher profile to get their ID
+            const teacherSnap = await db.collection('teachers').where('email', '==', email).limit(1).get();
+            if (!teacherSnap.empty) {
+                teacherProfile = { id: teacherSnap.docs[0].id, ...teacherSnap.docs[0].data() };
+            } else { console.error("Teacher profile not found!"); return; }
 
-        // --- Dashboard Initialization ---
-        function initializeTeacherDashboard() {
-            attendanceDateEl.valueAsDate = new Date(); // Set date to today
-            loadAttendanceBtn.onclick = loadAttendanceSheet;
+            // Fetch all exams and subjects assigned to this teacher
+            const [examsSnap, subjectsSnap] = await Promise.all([
+                db.collection('exams').get(),
+                db.collection('subjects').where('teacherId', '==', teacherProfile.id).get()
+            ]);
+            examsCache = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            assignedSubjectsCache = subjectsSnap.docs.map(doc => doc.data());
+
+            // Populate class dropdowns (assuming same class list for both)
+            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
+            attClassSelect.innerHTML = `<option value="">-- Select Class --</option>${classOptions}`;
+            marksClassSelect.innerHTML = `<option value="">-- Select Class --</option>${classOptions}`;
+            
+            // Set up event listeners
+            attDateEl.valueAsDate = new Date();
+            loadAttBtn.onclick = loadAttendanceSheet;
+            marksClassSelect.addEventListener('change', populateExamDropdown);
+            examSelect.addEventListener('change', populateSubjectDropdown);
+            loadMarksBtn.onclick = loadMarksSheet;
         }
 
-        // --- Teacher: Attendance Functions ---
-        async function loadAttendanceSheet() {
-            const selectedClass = teacherClassSelect.value;
-            const selectedDate = attendanceDateEl.value;
+        logoutBtn.onclick = () => auth.signOut().then(() => window.location.href = 'index.html');
+        
+        // --- UI Control ---
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`${tabName}-content`).classList.add('active');
+        }
 
-            if (!selectedClass || !selectedDate) {
-                alert('Please select a class and a date.');
+        // --- Marks Entry Logic ---
+        function populateExamDropdown() {
+            const selectedClass = marksClassSelect.value;
+            examSelect.innerHTML = '<option value="">-- Select Exam --</option>';
+            examSelect.disabled = true;
+            subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+            subjectSelect.disabled = true;
+
+            if (!selectedClass) return;
+
+            const relevantExams = examsCache.filter(exam => {
+                // Check if any key in marksStructure contains the class name
+                return Object.keys(exam.marksStructure).some(key => key.includes(`CLASS_${selectedClass}_`));
+            });
+
+            if (relevantExams.length > 0) {
+                relevantExams.forEach(exam => {
+                    examSelect.innerHTML += `<option value="${exam.id}">${exam.examName}</option>`;
+                });
+                examSelect.disabled = false;
+            }
+        }
+
+        function populateSubjectDropdown() {
+            const selectedClass = marksClassSelect.value;
+            subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+            subjectSelect.disabled = true;
+
+            if (!selectedClass) return;
+            
+            const subjectsForClass = assignedSubjectsCache.filter(sub => sub.className === selectedClass);
+            if(subjectsForClass.length > 0) {
+                subjectsForClass.forEach(sub => {
+                    subjectSelect.innerHTML += `<option value="${sub.subjectName}">${sub.subjectName}</option>`;
+                });
+                subjectSelect.disabled = false;
+            } else {
+                 subjectSelect.innerHTML = '<option value="">No assigned subjects</option>';
+            }
+        }
+        
+        async function loadMarksSheet() {
+            const classNum = marksClassSelect.value;
+            const examId = examSelect.value;
+            const subjectName = subjectSelect.value;
+            if (!classNum || !examId || !subjectName) {
+                alert('Please select a class, exam, and subject.');
                 return;
             }
 
-            attendanceSheetContainer.innerHTML = `<div class="status-message status-loading">Loading students...</div>`;
+            marksSheetContainer.innerHTML = `<div class="status-message status-loading">Loading students and marks...</div>`;
 
-            // 1. Fetch students for the selected class
-            const studentSnap = await db.collection('students').where('class', '==', selectedClass).get();
-            const students = studentSnap.docs
-                .map(doc => ({ id: doc.id, ...doc.data() }))
-                .sort((a, b) => a.name.localeCompare(b.name));
-
-            if (students.length === 0) {
-                attendanceSheetContainer.innerHTML = `<p>No students found for Class ${selectedClass}.</p>`;
-                return;
+            // Get max marks for the subject from the selected exam
+            const selectedExam = examsCache.find(e => e.id === examId);
+            const subjectKey = `CLASS_${classNum}_${subjectName.replace(/\s+/g, '_').toUpperCase()}`;
+            const maxMarks = selectedExam.marksStructure[subjectKey];
+            if (!maxMarks) {
+                 marksSheetContainer.innerHTML = `<p>Error: Max marks not configured for ${subjectName} in this exam.</p>`;
+                 return;
             }
 
-            // 2. Fetch existing attendance records for that day
-            const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`;
-            const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get();
-            const records = attendanceDoc.exists ? attendanceDoc.data().records : {};
+            // Fetch students and existing marks
+            const studentSnap = await db.collection('students').where('class', '==', classNum).get();
+            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => a.name.localeCompare(b.name));
+            
+            // Fetch existing marks for all students in this class for this exam
+            const marksPromises = students.map(s => db.collection('marks').doc(`${examId}_${s.id}`).get());
+            const marksDocs = await Promise.all(marksPromises);
+            const marksMap = new Map(marksDocs.filter(d => d.exists).map(d => [d.id.split('_')[1], d.data()]));
 
-            // 3. Build the HTML for the attendance sheet
-            let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3><div id="attendance-form">`;
+            let sheetHtml = `<h3>Marks for ${subjectName} (Max: ${maxMarks})</h3>`;
             students.forEach(s => {
-                const status = records[s.id] || 'present'; // Default to 'present'
+                const existingMarks = marksMap.get(s.id);
+                const currentMark = existingMarks?.subjectMarks?.[subjectName] || '';
                 sheetHtml += `
-                    <div class="attendance-row" data-student-id="${s.id}">
+                    <div class="data-row marks-row" data-student-id="${s.id}" data-student-name="${s.name}">
                         <span>${s.name} (${s.rollNo})</span>
-                        <div class="attendance-radios">
-                            <input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status === 'present' ? 'checked' : ''}>
-                            <label for="p_${s.id}">Present</label>
-                            <input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status === 'absent' ? 'checked' : ''}>
-                            <label for="a_${s.id}">Absent</label>
-                        </div>
+                        <input type="number" class="mark-input" value="${currentMark}" min="0" max="${maxMarks}" placeholder="N/A">
                     </div>`;
             });
-            sheetHtml += `</div><button id="save-attendance-btn" class="btn btn-success" style="margin-top:1.5em;">Save Attendance</button>`;
-            attendanceSheetContainer.innerHTML = sheetHtml;
-
-            // 4. Attach event listener to the newly created save button
-            document.getElementById('save-attendance-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate);
+            sheetHtml += `<button id="save-marks-btn" class="btn btn-success" style="margin-top:1.5em;">Save All Marks</button>`;
+            marksSheetContainer.innerHTML = sheetHtml;
+            document.getElementById('save-marks-btn').onclick = () => saveMarks(examId, subjectName);
         }
 
-        async function saveAttendance(docId, aClass, aDate) {
-            const saveButton = document.getElementById('save-attendance-btn');
-            saveButton.textContent = 'Saving...';
-            saveButton.disabled = true;
+        async function saveMarks(examId, subjectName) {
+            const saveBtn = document.getElementById('save-marks-btn');
+            saveBtn.textContent = 'Saving...';
+            saveBtn.disabled = true;
 
-            const records = {};
-            document.querySelectorAll('.attendance-row').forEach(row => {
+            const selectedExam = examsCache.find(e => e.id === examId);
+            const batch = db.batch();
+
+            document.querySelectorAll('.marks-row').forEach(row => {
                 const studentId = row.dataset.studentId;
-                const selectedValue = document.querySelector(`input[name="s_${studentId}"]:checked`).value;
-                records[studentId] = selectedValue;
+                const studentName = row.dataset.studentName;
+                const markValue = row.querySelector('.mark-input').value;
+                
+                if (markValue !== '') { // Only save if a mark is entered
+                    const docId = `${examId}_${studentId}`;
+                    const docRef = db.collection('marks').doc(docId);
+                    const data = {
+                        examId: examId,
+                        examName: selectedExam.examName,
+                        studentId: studentId,
+                        studentName: studentName,
+                        class: marksClassSelect.value,
+                        [`subjectMarks.${subjectName}`]: Number(markValue), // Use dot notation to update a field in a map
+                        teacherId: teacherProfile.id,
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                     batch.set(docRef, data, { merge: true }); // Use merge to avoid overwriting other subjects' marks
+                }
             });
-            
+
             try {
-                await db.collection('attendance').doc(docId).set({
-                    class: aClass,
-                    date: aDate,
-                    records: records
-                });
-                saveButton.textContent = 'Saved!';
-                saveButton.classList.remove('btn-success');
-                saveButton.classList.add('btn-edit'); // Change color to indicate success
-                setTimeout(() => {
-                    saveButton.textContent = 'Save Attendance';
-                    saveButton.disabled = false;
-                    saveButton.classList.remove('btn-edit');
-                    saveButton.classList.add('btn-success');
-                }, 2000);
+                await batch.commit();
+                saveBtn.textContent = 'Saved Successfully!';
+                setTimeout(() => { saveBtn.textContent = 'Save All Marks'; saveBtn.disabled = false; }, 2000);
             } catch (error) {
-                alert(`Error saving attendance: ${error.message}`);
-                saveButton.textContent = 'Save Attendance';
-                saveButton.disabled = false;
+                alert(`Error saving marks: ${error.message}`);
+                saveBtn.textContent = 'Save All Marks';
+                saveBtn.disabled = false;
             }
         }
+
+        // --- Attendance Logic (existing, no changes needed) ---
+        async function loadAttendanceSheet() { /* ... Same as before ... */ }
+        async function saveAttendance(docId, aClass, aDate) { /* ... Same as before ... */ }
     </script>
 </body>
 </html>

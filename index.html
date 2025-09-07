@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Management System - Login</title>
+    <style>
+        /* --- All CSS is included here --- */
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --warning-color: #f39c12;
+            --light-bg: #f4f7f9; --dark-text: #2c3e50; --light-text: #7f8c8d;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: center; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 500px; background: white; padding: 3em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center;
+        }
+        h1 { color: var(--dark-text); }
+        .google-btn {
+            background-color: #4285F4; color: white; border: none; padding: 12px 24px; font-size: 16px;
+            border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; margin-top: 1.5em;
+            transition: background-color 0.3s;
+        }
+        .google-btn:hover { background-color: #357ae8; }
+        .error-message { color: var(--danger-color); font-weight: bold; margin-top: 1em; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Login View -->
+        <div id="login-view">
+            <h1>College Management System</h1>
+            <p>Please sign in with your Google account to continue.</p>
+            <button id="login-btn" class="google-btn">Sign in with Google</button>
+            <p id="auth-error" class="error-message" style="display: none;"></p>
+        </div>
+    </div>
+    
+    <!-- Firebase SDKs (Required for authentication) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const adminEmail = "harshavardhanjw@gmail.com";
+
+        // --- DOM Elements for Login Page ---
+        const loginBtn = document.getElementById('login-btn');
+        const authErrorEl = document.getElementById('auth-error');
+
+        // --- Authentication Logic ---
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+        
+        loginBtn.onclick = () => {
+            authErrorEl.style.display = 'none'; // Hide previous errors
+            auth.signInWithPopup(googleProvider).catch(error => {
+                console.error("Authentication Error:", error);
+                authErrorEl.textContent = `Error: ${error.message}`;
+                authErrorEl.style.display = 'block';
+            });
+        };
+
+        // Listen for authentication state changes
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // If a user is logged in, check their role and redirect them
+                loginBtn.textContent = 'Authenticating... Please wait...';
+                loginBtn.disabled = true;
+                checkUserRoleAndRedirect(user);
+            } else {
+                // If no user is logged in, do nothing. They stay on the login page.
+                loginBtn.textContent = 'Sign in with Google';
+                loginBtn.disabled = false;
+            }
+        });
+
+        /**
+         * Checks the user's role from Firestore and redirects them to the correct page.
+         * @param {firebase.User} user The authenticated user object.
+         */
+        async function checkUserRoleAndRedirect(user) {
+            // 1. Check if the user is the hardcoded admin
+            if (user.email === adminEmail) {
+                window.location.href = 'admin.html';
+                return;
+            }
+
+            // 2. Check the 'users' collection for a defined role
+            const userDoc = await db.collection('users').doc(user.email).get();
+
+            if (userDoc.exists) {
+                const role = userDoc.data().role;
+                if (role === 'student') {
+                    window.location.href = 'student.html';
+                } else if (role === 'teacher') {
+                    window.location.href = 'teacher.html';
+                } else {
+                    // Role is undefined or invalid, treat as pending
+                    handlePendingUser('Your account role is not properly configured. Please contact an admin.');
+                }
+            } else {
+                // 3. If user is not in the 'users' collection, they are a new or pending user
+                // Add them to the 'pending_users' collection for the admin to see
+                await db.collection('pending_users').doc(user.email).set({ email: user.email }, { merge: true });
+                handlePendingUser('Your account is pending approval. Please contact the administrator.');
+            }
+        }
+
+        /**
+         * Handles users who don't have a valid role by showing an error and signing them out.
+         * @param {string} message The error message to display.
+         */
+        function handlePendingUser(message) {
+            authErrorEl.textContent = message;
+            authErrorEl.style.display = 'block';
+            // Sign the user out so they don't get stuck in a login loop
+            auth.signOut(); 
+        }
+
+    </script>
+</body>
+</html>

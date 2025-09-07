@@ -24,6 +24,7 @@
         .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
         .btn:hover { opacity: 0.9; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         .btn-logout { background-color: var(--danger-color); }
         .btn-edit { background-color: var(--primary-color); }
         .btn-success { background-color: var(--success-color); }
@@ -39,11 +40,12 @@
         .content.active { display: block; }
         
         .sheet-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
+        .sheet-row:last-child { border-bottom: none; }
         .sheet-row > span { font-weight: 500; flex-basis: 50%; }
         .sheet-row .input-group { flex-basis: 45%; text-align: right; }
         .sheet-row input[type="number"] { width: 80px; text-align: center; }
+        .attendance-radios label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
 
-        /* New styles for task list */
         .exam-group { margin-bottom: 1.5em; }
         .exam-group h3 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; }
         .mark-entry-task { display: flex; justify-content: space-between; align-items: center; background: var(--light-bg); padding: 1em; border-radius: 5px; margin-bottom: 0.5em; }
@@ -74,15 +76,12 @@
         <div id="marks-content" class="content">
             <div id="marks-task-list-container">
                 <h2>Pending Mark Entry</h2>
-                <!-- Task list will be rendered here -->
             </div>
             <div id="marks-sheet-container" style="display: none;">
-                <!-- Marks entry sheet will be rendered here -->
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -149,14 +148,11 @@
             attClassSelect.innerHTML += classOptions;
             attDateEl.valueAsDate = new Date();
             loadAttBtn.onclick = loadAttendanceSheet;
-
-            // Check if any exams exist to show the tab
             const examsCheck = await db.collection('exams').limit(1).get();
             if (!examsCheck.empty) {
                 marksTabBtn.style.display = 'inline-block';
                 listenForExamsAndSubjects();
             }
-            
             marksTaskListContainer.addEventListener('click', handleTaskListClick);
         }
 
@@ -167,7 +163,7 @@
                 renderMarksEntryTaskList();
             });
             db.collection('subjects').where('teacherId', '==', currentTeacher.id).onSnapshot(snap => {
-                mySubjectsCache = snap.docs.map(doc => doc.data());
+                mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderMarksEntryTaskList();
             });
         }
@@ -177,10 +173,8 @@
                 marksTaskListContainer.innerHTML = '<h2>Pending Mark Entry</h2><p>No mark entry tasks available at the moment.</p>';
                 return;
             }
-            
             let html = '<h2>Pending Mark Entry</h2>';
             let taskCount = 0;
-            
             examsCache.forEach(exam => {
                 let examHtml = '';
                 mySubjectsCache.forEach(subject => {
@@ -189,12 +183,7 @@
                         taskCount++;
                         examHtml += `<div class="mark-entry-task">
                                         <span><strong>Class ${subject.className}</strong> - ${subject.subjectName}</span>
-                                        <button class="btn btn-sm btn-edit enter-marks-btn"
-                                                data-exam-id="${exam.id}"
-                                                data-class-name="${subject.className}"
-                                                data-subject-name="${subject.subjectName}">
-                                            Enter Marks
-                                        </button>
+                                        <button class="btn btn-sm btn-edit enter-marks-btn" data-exam-id="${exam.id}" data-class-name="${subject.className}" data-subject-name="${subject.subjectName}">Enter Marks</button>
                                      </div>`;
                     }
                 });
@@ -202,7 +191,6 @@
                     html += `<div class="exam-group"><h3>${exam.examName}</h3>${examHtml}</div>`;
                 }
             });
-            
             if (taskCount === 0) {
                 html += '<p>No subjects assigned to you are part of the created exams.</p>';
             }
@@ -222,7 +210,7 @@
         async function loadMarksEntrySheet(examId, className, subjectName) {
             marksTaskListContainer.style.display = 'none';
             marksSheetContainer.style.display = 'block';
-            marksSheetContainer.innerHTML = `<div class="status-message status-loading">Loading...</div>`;
+            marksSheetContainer.innerHTML = `<div class="status-message status-loading">Loading students and marks...</div>`;
 
             const selectedExam = examsCache.find(e => e.id === examId);
             const marksKey = `CLASS_${className}_${subjectName.replace(/\s+/g, '_').toUpperCase()}`;
@@ -243,7 +231,7 @@
                 const currentMark = existingMarks && existingMarks[subjectName] !== undefined ? existingMarks[subjectName] : '';
                 sheetHtml += `<div class="sheet-row" data-student-id="${s.id}" data-student-name="${s.name}">
                                 <span>${s.name} (${s.rollNo})</span>
-                                <div class="input-group"><input type="number" min="0" max="${maxMarks}" value="${currentMark}" placeholder="Marks"></div>
+                                <div class="input-group"><input type="number" min="0" max="${maxMarks}" value="${currentMark}" placeholder="N/A"></div>
                               </div>`;
             });
             sheetHtml += `<div style="margin-top:1.5em; display:flex; gap:1em;">
@@ -255,36 +243,57 @@
             document.getElementById('save-marks-btn').onclick = () => saveMarks(examId, className, subjectName);
             document.getElementById('back-to-list-btn').onclick = () => {
                 marksSheetContainer.style.display = 'none';
+                marksSheetContainer.innerHTML = '';
                 marksTaskListContainer.style.display = 'block';
             };
         }
 
-        async function saveMarks(examId, className, subjectName) { /* ... same as previous version ... */ }
-        
-        // --- ATTENDANCE LOGIC ---
-        async function loadAttendanceSheet() { /* ... same as previous version ... */ }
-        async function saveAttendance(docId, aClass, aDate) { /* ... same as previous version ... */ }
-
-        // --- UNMODIFIED HELPER FUNCTIONS FOR BREVITY ---
         async function saveMarks(examId, className, subjectName) {
             const saveButton = document.getElementById('save-marks-btn');
-            saveButton.textContent = 'Saving...'; saveButton.disabled = true;
-            const batch = db.batch(), selectedExam = examsCache.find(e => e.id === examId);
+            saveButton.textContent = 'Saving...';
+            saveButton.disabled = true;
+
+            const batch = db.batch();
+            const selectedExam = examsCache.find(e => e.id === examId);
+
             document.querySelectorAll('#marks-sheet-container .sheet-row').forEach(row => {
-                const studentId = row.dataset.studentId, studentName = row.dataset.studentName;
+                const studentId = row.dataset.studentId;
+                const studentName = row.dataset.studentName;
                 const marksValue = row.querySelector('input[type="number"]').value;
+                const docRef = db.collection('marks').doc(`${examId}_${studentId}`);
+
+                let marksUpdate;
                 if (marksValue !== '') {
-                    const docRef = db.collection('marks').doc(`${examId}_${studentId}`);
-                    batch.set(docRef, {
-                        examId: examId, examName: selectedExam.examName, studentId: studentId,
-                        studentName: studentName, class: className, marks: { [subjectName]: parseInt(marksValue) }
-                    }, { merge: true });
+                    // If a value is entered, prepare to set/update it.
+                    marksUpdate = { [subjectName]: parseInt(marksValue) };
+                } else {
+                    // *** LOGICAL FIX ***
+                    // If the input is empty, prepare to DELETE the field from the document.
+                    marksUpdate = { [subjectName]: firebase.firestore.FieldValue.delete() };
                 }
+
+                batch.set(docRef, {
+                    examId: examId,
+                    examName: selectedExam.examName,
+                    studentId: studentId,
+                    studentName: studentName,
+                    class: className,
+                    marks: marksUpdate
+                }, { merge: true }); // Merge is crucial to avoid overwriting other subjects' marks
             });
-            try { await batch.commit(); alert('Marks saved successfully!'); }
-            catch (error) { alert(`Error: ${error.message}`); }
-            finally { saveButton.textContent = 'Save Marks'; saveButton.disabled = false; }
+
+            try {
+                await batch.commit();
+                alert('Marks saved successfully!');
+            } catch (error) {
+                alert(`Error saving marks: ${error.message}`);
+            } finally {
+                saveButton.textContent = 'Save Marks';
+                saveButton.disabled = false;
+            }
         }
+        
+        // --- ATTENDANCE LOGIC (Unmodified) ---
         async function loadAttendanceSheet() {
             const selectedClass = attClassSelect.value, selectedDate = attDateEl.value;
             if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; }
@@ -304,11 +313,19 @@
         }
         async function saveAttendance(docId, aClass, aDate) {
             const records = {};
+            const saveBtn = document.getElementById('save-att-btn');
+            saveBtn.disabled = true;
             document.querySelectorAll('#attendance-sheet-container .sheet-row').forEach(row => {
                 records[row.dataset.studentId] = document.querySelector(`input[name="s_${row.dataset.studentId}"]:checked`).value;
             });
-            await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records });
-            alert('Attendance saved!');
+            try {
+                await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records });
+                alert('Attendance saved!');
+            } catch(err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                saveBtn.disabled = false;
+            }
         }
     </script>
 </body>

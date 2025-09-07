@@ -35,6 +35,9 @@
         .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
         .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 2px solid transparent; }
         .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
+        .marks-config { background: var(--light-bg); padding: 1em; border-radius: 5px; margin-top: 1em; }
+        .marks-config-controls { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center; }
+        .marks-item { background: white; padding: 8px; border-radius: 4px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
         
         /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
@@ -55,21 +58,22 @@
                 <button class="tab-button" onclick="showTab('subjects')">Subjects</button>
                 <button class="tab-button" onclick="showTab('exams')">Exams</button>
             </div>
-            <!-- All content tabs here -->
+            
+            <!-- All content tabs are here, now with Edit and Delete buttons in their rendered lists -->
             <div id="students-content" class="content active">
-                <div class="form-container"><h2>Create Student</h2><form id="create-student-form">...</form></div>
+                <div class="form-container"><h2>Create Student</h2><form id="create-student-form"><label>Name:</label><input name="name" type="text" required><label>Roll No:</label><input name="rollNo" type="text" required><label>Class:</label><select name="class" required><option value="">-- Class --</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><button type="submit">Create Student</button></form></div>
                 <div class="list-container"><h2>Existing Students</h2><div id="student-list"></div></div>
             </div>
             <div id="teachers-content" class="content">
-                 <div class="form-container"><h2>Create Teacher</h2><form id="create-teacher-form">...</form></div>
+                 <div class="form-container"><h2>Create Teacher</h2><form id="create-teacher-form"><label>Name:</label><input name="name" type="text" required><label>Email:</label><input name="email" type="email" placeholder="Must match Google Account" required><button type="submit">Create Teacher</button><p id="create-teacher-status"></p></form></div>
                  <div class="list-container"><h2>Existing Teachers</h2><div id="teacher-list"></div></div>
             </div>
             <div id="subjects-content" class="content">
-                <div class="form-container"><h2>Create Subject</h2><form id="create-subject-form">...</form></div>
+                <div class="form-container"><h2>Create Subject</h2><form id="create-subject-form"><label>Class:</label><select name="class" required><option value="">-- Class --</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><label>Subject Name:</label><input name="name" type="text" required><label>Assign Teacher:</label><select name="teacher" id="subject-teacher" required><option value="">-- Select Teacher --</option></select><button type="submit">Create Subject</button><p id="create-subject-status"></p></form></div>
                 <div class="list-container"><h2>Existing Subjects</h2><div id="subject-list"></div></div>
             </div>
             <div id="exams-content" class="content">
-                <div class="form-container"><h2>Create Exam</h2><form id="create-exam-form">...</form></div>
+                <div class="form-container"><h2>Create Exam</h2><form id="create-exam-form"><label>Exam Name:</label><input type="text" id="exam-name" required placeholder="e.g., Unit Test 1"><div class="marks-config"><h4>Configure Marks</h4><div class="marks-config-controls"><select id="exam-class-select"><option value="">Class</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select><select id="exam-subject-select" disabled><option value="">Subject</option></select><input type="number" id="exam-max-marks" placeholder="Max Marks" min="1"><button type="button" id="add-exam-subject-btn" class="btn btn-edit">Add</button></div><div id="exam-marks-list" style="margin-top:1em;"></div></div><button type="submit">Create Exam</button><p id="create-exam-status"></p></form></div>
                 <div class="list-container"><h2>Existing Exams</h2><div id="exam-list"></div></div>
             </div>
         </div>
@@ -133,15 +137,15 @@
         }
         
         // --- UI Control ---
-        function showTab(tabName) { /* ... same as before ... */ }
+        function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
         // --- Data Listeners ---
         function listenForData() {
             db.collection('students').orderBy('name').onSnapshot(snap => { studentsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderStudentList(); });
-            db.collection('teachers').orderBy('name').onSnapshot(snap => { teachersCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderTeacherList(); });
-            db.collection('subjects').onSnapshot(snap => { subjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderSubjectList(); });
+            db.collection('teachers').orderBy('name').onSnapshot(snap => { teachersCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderTeacherList(); document.getElementById('subject-teacher').innerHTML = '<option value="">-- Select Teacher --</option>' + teachersCache.map(t => `<option value="${t.id}" data-teacher-name="${t.name}">${t.name}</option>`).join(''); });
+            db.collection('subjects').orderBy('className').onSnapshot(snap => { subjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderSubjectList(); });
             db.collection('exams').orderBy('createdAt', 'desc').onSnapshot(snap => { examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderExamList(); });
         }
 
@@ -151,115 +155,87 @@
         const renderSubjectList = () => subjectListEl.innerHTML = subjectsCache.map(s => `<div class="item-card"><div><p><strong>${s.subjectName}</strong> (Class ${s.className})</p><small>Teacher: ${s.teacherName || 'Unassigned'}</small></div><div><button class="btn btn-sm btn-edit" data-id="${s.id}" data-type="subject">Edit</button><button class="btn btn-sm btn-delete" data-id="${s.id}" data-type="subject">Delete</button></div></div>`).join('') || '<p>No subjects.</p>';
         const renderExamList = () => examListEl.innerHTML = examsCache.map(e => `<div class="item-card"><div><p><strong>${e.examName}</strong></p></div><div><button class="btn btn-sm btn-edit" data-id="${e.id}" data-type="exam">Edit</button><button class="btn btn-sm btn-delete" data-id="${e.id}" data-type="exam">Delete</button></div></div>`).join('') || '<p>No exams.</p>';
         
-        // --- Event Delegation Setup ---
+        // --- Event Delegation & Form Handlers ---
         function setupEventListeners() {
             document.querySelector('#admin-view').addEventListener('click', handleListAction);
+            document.getElementById('create-student-form').addEventListener('submit', async e => { e.preventDefault(); try { await db.collection('students').add({name: e.target.name.value, rollNo: e.target.rollNo.value, class: e.target.class.value}); e.target.reset(); } catch(err){alert(err.message)} });
+            document.getElementById('create-teacher-form').addEventListener('submit', async e => { e.preventDefault(); try { const batch = db.batch(); batch.set(db.collection('teachers').doc(), {name: e.target.name.value, email: e.target.email.value}); batch.set(db.collection('users').doc(e.target.email.value), {role: 'teacher'}); await batch.commit(); e.target.reset(); } catch(err){alert(err.message)} });
+            document.getElementById('create-subject-form').addEventListener('submit', async e => { e.preventDefault(); const selectedOpt = e.target.teacher.options[e.target.teacher.selectedIndex]; try { await db.collection('subjects').add({className: e.target.class.value, subjectName: e.target.name.value, teacherId: selectedOpt.value, teacherName: selectedOpt.dataset.teacherName}); e.target.reset(); } catch(err){alert(err.message)} });
+            // Exam form event listeners are separate due to their complexity
+            document.getElementById('create-exam-form').addEventListener('submit', handleCreateExam);
+            document.getElementById('add-exam-subject-btn').addEventListener('click', handleAddExamSubject);
         }
 
         function handleListAction(e) {
             const { id, type, email } = e.target.dataset;
             if (!id || !type) return;
-
             if (e.target.classList.contains('btn-edit')) {
-                switch (type) {
-                    case 'student': openEditStudentModal(id); break;
-                    case 'teacher': openEditTeacherModal(id); break;
-                    case 'subject': openEditSubjectModal(id); break;
-                    case 'exam':    openEditExamModal(id); break;
-                }
+                if (type === 'student') openEditStudentModal(id);
+                if (type === 'teacher') openEditTeacherModal(id);
+                if (type === 'subject') openEditSubjectModal(id);
+                if (type === 'exam')    openEditExamModal(id);
             }
             if (e.target.classList.contains('btn-delete')) {
-                switch (type) {
-                    case 'student': handleDelete(id, 'student', 'students'); break;
-                    case 'teacher': handleSafeTeacherDelete(id, email); break;
-                    case 'subject': handleDelete(id, 'subject', 'subjects'); break;
-                    case 'exam':    handleDelete(id, 'exam', 'exams'); break;
-                }
+                if (type === 'student') handleDelete(id, 'student', 'students');
+                if (type === 'teacher') handleSafeTeacherDelete(id, email);
+                if (type === 'subject') handleDelete(id, 'subject', 'subjects');
+                if (type === 'exam')    handleDelete(id, 'exam', 'exams');
             }
         }
         
         // --- EDIT MODAL OPENERS ---
         function openEditStudentModal(id) {
             const student = studentsCache.find(s => s.id === id);
-            editStudentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-student-modal')">&times;</span><h2>Edit Student</h2><form id="edit-student-form" data-id="${id}"><label>Name:</label><input type="text" value="${student.name}" required><label>Roll No:</label><input type="text" value="${student.rollNo}" required><label>Class:</label><input type="text" value="${student.class}" required><button type="submit">Save Changes</button></form></div>`;
+            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}" ${student.class == (i+1) ? 'selected' : ''}>${i+1}</option>`).join('');
+            editStudentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-student-modal')">&times;</span><h2>Edit Student</h2><form id="edit-student-form" data-id="${id}"><label>Name:</label><input name="name" type="text" value="${student.name}" required><label>Roll No:</label><input name="rollNo" type="text" value="${student.rollNo}" required><label>Class:</label><select name="class">${classOptions}</select><button type="submit">Save Changes</button></form></div>`;
             openModal('edit-student-modal');
             document.getElementById('edit-student-form').addEventListener('submit', handleUpdateStudent);
         }
         function openEditTeacherModal(id) {
             const teacher = teachersCache.find(t => t.id === id);
-            editTeacherModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-teacher-modal')">&times;</span><h2>Edit Teacher</h2><form id="edit-teacher-form" data-id="${id}"><label>Name:</label><input type="text" name="name" value="${teacher.name}" required><label>Email:</label><input type="email" value="${teacher.email}" disabled><button type="submit">Save Changes</button></form></div>`;
+            editTeacherModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-teacher-modal')">&times;</span><h2>Edit Teacher</h2><form id="edit-teacher-form" data-id="${id}"><label>Name:</label><input type="text" name="name" value="${teacher.name}" required><label>Email (cannot be changed):</label><input type="email" value="${teacher.email}" disabled><button type="submit">Save Changes</button></form></div>`;
             openModal('edit-teacher-modal');
             document.getElementById('edit-teacher-form').addEventListener('submit', handleUpdateTeacher);
         }
         function openEditSubjectModal(id) {
             const subject = subjectsCache.find(s => s.id === id);
             const teacherOptions = teachersCache.map(t => `<option value="${t.id}" data-teacher-name="${t.name}" ${t.id === subject.teacherId ? 'selected' : ''}>${t.name}</option>`).join('');
-            editSubjectModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-subject-modal')">&times;</span><h2>Edit Subject</h2><form id="edit-subject-form" data-id="${id}"><label>Subject Name:</label><input type="text" name="name" value="${subject.subjectName}" required><label>Class:</label><input type="text" name="class" value="${subject.className}" required><label>Teacher:</label><select name="teacher"><option value="">-- Unassigned --</option>${teacherOptions}</select><button type="submit">Save Changes</button></form></div>`;
+            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}" ${subject.className == (i+1) ? 'selected' : ''}>${i+1}</option>`).join('');
+            editSubjectModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-subject-modal')">&times;</span><h2>Edit Subject</h2><form id="edit-subject-form" data-id="${id}"><label>Subject Name:</label><input type="text" name="name" value="${subject.subjectName}" required><label>Class:</label><select name="class">${classOptions}</select><label>Teacher:</label><select name="teacher"><option value="">-- Unassigned --</option>${teacherOptions}</select><button type="submit">Save Changes</button></form></div>`;
             openModal('edit-subject-modal');
             document.getElementById('edit-subject-form').addEventListener('submit', handleUpdateSubject);
         }
         function openEditExamModal(id) {
+            // Note: Editing exam marks structure is complex and better handled by deleting and recreating.
+            // This modal only allows for editing the name for simplicity and stability.
             const exam = examsCache.find(e => e.id === id);
-            editExamModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-exam-modal')">&times;</span><h2>Edit Exam</h2><form id="edit-exam-form" data-id="${id}"><label>Exam Name:</label><input type="text" name="name" value="${exam.examName}" required><button type="submit">Save Changes</button></form></div>`;
+            editExamModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-exam-modal')">&times;</span><h2>Edit Exam Name</h2><form id="edit-exam-form" data-id="${id}"><label>Exam Name:</label><input type="text" name="name" value="${exam.examName}" required><button type="submit">Save Changes</button></form></div>`;
             openModal('edit-exam-modal');
             document.getElementById('edit-exam-form').addEventListener('submit', handleUpdateExam);
         }
 
         // --- UPDATE HANDLERS ---
-        async function handleUpdateStudent(e) {
-            e.preventDefault(); const id = e.target.dataset.id;
-            try { await db.collection('students').doc(id).update({ name: e.target[0].value, rollNo: e.target[1].value, class: e.target[2].value }); closeModal('edit-student-modal'); } catch (err) { alert(`Error: ${err.message}`); }
-        }
-        async function handleUpdateTeacher(e) {
-            e.preventDefault(); const id = e.target.dataset.id, newName = e.target.name.value;
-            const batch = db.batch();
-            try {
-                batch.update(db.collection('teachers').doc(id), { name: newName });
-                const subjectsToUpdate = await db.collection('subjects').where('teacherId', '==', id).get();
-                subjectsToUpdate.forEach(doc => batch.update(doc.ref, { teacherName: newName }));
-                await batch.commit();
-                closeModal('edit-teacher-modal');
-            } catch (err) { alert(`Error: ${err.message}`); }
-        }
-        async function handleUpdateSubject(e) {
-            e.preventDefault(); const id = e.target.dataset.id; const selectedOpt = e.target.teacher.options[e.target.teacher.selectedIndex];
-            try {
-                await db.collection('subjects').doc(id).update({
-                    subjectName: e.target.name.value,
-                    className: e.target.class.value,
-                    teacherId: selectedOpt.value || null,
-                    teacherName: selectedOpt.dataset.teacherName || null
-                });
-                closeModal('edit-subject-modal');
-            } catch (err) { alert(`Error: ${err.message}`); }
-        }
-        async function handleUpdateExam(e) {
-            e.preventDefault(); const id = e.target.dataset.id;
-            try { await db.collection('exams').doc(id).update({ examName: e.target.name.value }); closeModal('edit-exam-modal'); } catch (err) { alert(`Error: ${err.message}`); }
-        }
+        async function handleUpdateStudent(e) { e.preventDefault(); const id = e.target.dataset.id; try { await db.collection('students').doc(id).update({ name: e.target.name.value, rollNo: e.target.rollNo.value, class: e.target.class.value }); closeModal('edit-student-modal'); } catch (err) { alert(`Error: ${err.message}`); } }
+        async function handleUpdateTeacher(e) { e.preventDefault(); const id = e.target.dataset.id, newName = e.target.name.value; const batch = db.batch(); try { batch.update(db.collection('teachers').doc(id), { name: newName }); const subjectsToUpdate = await db.collection('subjects').where('teacherId', '==', id).get(); subjectsToUpdate.forEach(doc => batch.update(doc.ref, { teacherName: newName })); await batch.commit(); closeModal('edit-teacher-modal'); } catch (err) { alert(`Error: ${err.message}`); } }
+        async function handleUpdateSubject(e) { e.preventDefault(); const id = e.target.dataset.id; const selectedOpt = e.target.teacher.options[e.target.teacher.selectedIndex]; try { await db.collection('subjects').doc(id).update({ subjectName: e.target.name.value, className: e.target.class.value, teacherId: selectedOpt.value || null, teacherName: selectedOpt.dataset.teacherName || null }); closeModal('edit-subject-modal'); } catch (err) { alert(`Error: ${err.message}`); } }
+        async function handleUpdateExam(e) { e.preventDefault(); const id = e.target.dataset.id; try { await db.collection('exams').doc(id).update({ examName: e.target.name.value }); closeModal('edit-exam-modal'); } catch (err) { alert(`Error: ${err.message}`); } }
 
         // --- DELETE HANDLERS ---
-        async function handleSafeTeacherDelete(teacherId, teacherEmail) {
-            if (!confirm(`Are you sure? This will unassign the teacher from all subjects.`)) return;
-            const batch = db.batch();
-            try {
-                const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherId).get();
-                subjectsQuery.forEach(doc => batch.update(doc.ref, { teacherId: null, teacherName: null }));
-                batch.delete(db.collection('teachers').doc(teacherId));
-                batch.delete(db.collection('users').doc(teacherEmail));
-                await batch.commit();
-                alert('Teacher deleted successfully.');
-            } catch (err) { alert(`Error: ${err.message}`); }
-        }
-        function handleDelete(id, itemName, collectionName) {
-            if (confirm(`Are you sure you want to delete this ${itemName}?`)) {
-                db.collection(collectionName).doc(id).delete().catch(err => alert(`Error: ${err.message}`));
-            }
-        }
+        async function handleSafeTeacherDelete(teacherId, teacherEmail) { if (!confirm(`Are you sure? This will unassign the teacher from all subjects.`)) return; const batch = db.batch(); try { const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherId).get(); subjectsQuery.forEach(doc => batch.update(doc.ref, { teacherId: null, teacherName: null })); batch.delete(db.collection('teachers').doc(teacherId)); batch.delete(db.collection('users').doc(teacherEmail)); await batch.commit(); alert('Teacher deleted successfully.'); } catch (err) { alert(`Error: ${err.message}`); } }
+        function handleDelete(id, itemName, collectionName) { if (confirm(`Are you sure you want to delete this ${itemName}?`)) { db.collection(collectionName).doc(id).delete().catch(err => alert(`Error: ${err.message}`)); } }
         
-        // Note: The 'Create' form HTML and logic has been omitted for brevity, but should be placed
-        // back into the ... placeholders in the HTML body from the previous version. This script
-        // focuses on the new Edit/Delete functionality.
+        // --- Complex Form Handlers (Create Exam) ---
+        let currentExamMarks = [];
+        const examNameInput = document.getElementById('exam-name');
+        const examClassSelect = document.getElementById('exam-class-select');
+        const examSubjectSelect = document.getElementById('exam-subject-select');
+        const examMaxMarksInput = document.getElementById('exam-max-marks');
+        const examMarksListEl = document.getElementById('exam-marks-list');
+        examClassSelect.addEventListener('change', () => { const selectedClass = examClassSelect.value; examSubjectSelect.innerHTML = '<option value="">Subject</option>'; examSubjectSelect.disabled = true; if (!selectedClass) return; const subjectsForClass = subjectsCache.filter(s => s.className === selectedClass); if(subjectsForClass.length > 0) { subjectsForClass.forEach(s => examSubjectSelect.innerHTML += `<option value="${s.subjectName}">${s.subjectName}</option>`); examSubjectSelect.disabled = false; } });
+        function handleAddExamSubject() { const className = examClassSelect.value, subjectName = examSubjectSelect.value, maxMarks = examMaxMarksInput.value; if (!className || !subjectName || !maxMarks) { alert('Please select a class, subject, and enter max marks.'); return; } if (currentExamMarks.some(item => item.class === className && item.subject === subjectName)) { alert('This subject has already been added.'); return; } currentExamMarks.push({ class: className, subject: subjectName, marks: parseInt(maxMarks) }); renderCurrentExamMarks(); examMaxMarksInput.value = ''; }
+        function renderCurrentExamMarks() { examMarksListEl.innerHTML = currentExamMarks.map((item, index) => `<div class="marks-item"><span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span><button type="button" class="btn btn-sm btn-delete" data-index="${index}" onclick="removeExamMark(${index})">Remove</button></div>`).join(''); }
+        function removeExamMark(index) { currentExamMarks.splice(index, 1); renderCurrentExamMarks(); }
+        async function handleCreateExam(e) { e.preventDefault(); if (!examNameInput.value || currentExamMarks.length === 0) { alert('Please provide exam name and configure marks.'); return; } const marksStructure = {}; currentExamMarks.forEach(item => { const key = `CLASS_${item.class}_${item.subject.replace(/\s+/g, '_').toUpperCase()}`; marksStructure[key] = item.marks; }); try { await db.collection('exams').add({ examName: examNameInput.value, marksStructure, createdAt: firebase.firestore.FieldValue.serverTimestamp() }); e.target.reset(); currentExamMarks = []; renderCurrentExamMarks(); } catch(err){alert(err.message)} }
     </script>
 </body>
 </html>

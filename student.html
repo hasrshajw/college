@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - College Management System</title>
+    <style>
+        /* --- All CSS is included here --- */
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --warning-color: #f39c12;
+            --light-bg: #f4f7f9; --dark-text: #2c3e50; --light-text: #7f8c8d;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 900px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2, h3 { color: var(--dark-text); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .header-info p { margin: 0; font-size: 0.9em; color: var(--light-text); }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-logout { background-color: var(--danger-color); }
+        .btn-edit { background-color: var(--primary-color); }
+        
+        .student-item { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); }
+
+        /* Attendance Styles */
+        #student-attendance-content { margin-top: 2em; text-align: center; }
+        .attendance-summary { background: var(--light-bg); padding: 1em; border-radius: 8px; margin-top: 1em; }
+        .percentage-bar { background: #e0e0e0; border-radius: 5px; overflow: hidden; height: 25px; margin-top: 0.5em; }
+        .percentage-fill { background: var(--success-color); height: 100%; text-align: center; color: white; line-height: 25px; transition: width 0.5s; font-weight: bold; }
+        .calendar { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        .calendar th, .calendar td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
+        .calendar th { background-color: var(--light-bg); font-weight: 600; }
+        .calendar .day { cursor: default; }
+        .calendar .today { background-color: var(--warning-color); color: white; font-weight: bold; }
+        .calendar .present { background-color: #d4edda; color: #155724; font-weight: bold; }
+        .calendar .absent { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+        .calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em; padding: 0 1em; }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;"> <!-- Hide container until user is verified -->
+        <!-- Header for logged-in users -->
+        <div id="app-header" class="header">
+            <div class="header-info">
+                <h1 id="header-title">Student Dashboard</h1>
+                <p>Logged in as: <strong id="user-email"></strong></p>
+            </div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+
+        <!-- Student Dashboard View -->
+        <div id="student-view" class="student-details">
+            <div id="student-details-content">
+                <!-- Student profile info will be loaded here by JS -->
+            </div>
+            <div id="student-attendance-content">
+                <h3>My Attendance</h3>
+                <div id="attendance-summary-container">
+                    <!-- Attendance summary bar will be loaded here -->
+                </div>
+                <div id="attendance-calendar-container" style="margin-top: 2em;">
+                    <!-- The calendar will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // --- DOM Elements ---
+        const mainContainer = document.querySelector('.container');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userEmailEl = document.getElementById('user-email');
+        const studentDetailsContent = document.getElementById('student-details-content');
+        const attendanceSummaryContainer = document.getElementById('attendance-summary-container');
+        const attendanceCalendarContainer = document.getElementById('attendance-calendar-container');
+
+        // --- Global State ---
+        let studentProfile = null; // To store the student's document ID and data
+        let attendanceUnsubscribe = null; // To stop the real-time listener on logout
+        let calendarDate = new Date(); // To keep track of the currently displayed month
+
+        // --- Authentication & Page Protection ---
+        auth.onAuthStateChanged(async user => {
+            if (user) {
+                // User is logged in, verify their role
+                const userDoc = await db.collection('users').doc(user.email).get();
+                if (userDoc.exists && userDoc.data().role === 'student') {
+                    // User is a verified student, show the page
+                    mainContainer.style.display = 'block';
+                    userEmailEl.textContent = user.email;
+                    initializeStudentDashboard(user.email);
+                } else {
+                    // User is not a student, log out and redirect
+                    alert('Access Denied. You do not have student permissions.');
+                    auth.signOut().then(() => window.location.href = 'index.html');
+                }
+            } else {
+                // No user logged in, redirect to login page
+                window.location.href = 'index.html';
+            }
+        });
+
+        logoutBtn.onclick = () => {
+            if (attendanceUnsubscribe) attendanceUnsubscribe(); // Stop listener
+            auth.signOut().then(() => {
+                window.location.href = 'index.html';
+            });
+        };
+
+        // --- Dashboard Initialization ---
+        async function initializeStudentDashboard(email) {
+            // Fetch student profile based on their email
+            const studentSnap = await db.collection('students').where('email', '==', email).limit(1).get();
+            if (studentSnap.empty) {
+                studentDetailsContent.innerHTML = '<h2>Error: Your student profile could not be found. Please contact an administrator.</h2>';
+                return;
+            }
+            const studentDoc = studentSnap.docs[0];
+            studentProfile = { id: studentDoc.id, ...studentDoc.data() };
+            
+            // Render student profile details
+            studentDetailsContent.innerHTML = `<h2>Welcome, ${studentProfile.name}!</h2>
+                <div class="student-item" style="text-align:left; display:block;">
+                    <p><strong>Roll No:</strong> ${studentProfile.rollNo}</p>
+                    <p><strong>Class:</strong> ${studentProfile.class}</p>
+                </div>`;
+            
+            // Start listening for attendance records
+            listenForStudentAttendance(studentProfile.id);
+        }
+
+        // --- Student: Attendance Functions ---
+        function listenForStudentAttendance(studentId) {
+            if (attendanceUnsubscribe) attendanceUnsubscribe(); // Unsubscribe from previous listener if any
+
+            attendanceUnsubscribe = db.collection('attendance').onSnapshot(snap => {
+                const myRecords = [];
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    if(data.records && data.records[studentId]) {
+                        myRecords.push({ date: data.date, status: data.records[studentId] });
+                    }
+                });
+                renderAttendanceSummary(myRecords);
+                renderAttendanceCalendar(myRecords, calendarDate);
+            });
+        }
+
+        function renderAttendanceSummary(records) {
+            const total = records.length;
+            if (total === 0) {
+                attendanceSummaryContainer.innerHTML = '<p>No attendance records found yet.</p>';
+                return;
+            }
+            const present = records.filter(r => r.status === 'present').length;
+            const percentage = Math.round((present / total) * 100);
+            attendanceSummaryContainer.innerHTML = `
+                <div class="attendance-summary">
+                    <h4>Overall: ${present} / ${total} Days Attended</h4>
+                    <div class="percentage-bar">
+                        <div class="percentage-fill" style="width: ${percentage}%;">${percentage}%</div>
+                    </div>
+                </div>`;
+        }
+        
+        function renderAttendanceCalendar(records, dateToDisplay) {
+            const year = dateToDisplay.getFullYear();
+            const month = dateToDisplay.getMonth();
+            const today = new Date();
+            const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            
+            const attendanceMap = new Map(records.map(r => [r.date, r.status]));
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun, 1=Mon...
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const monthName = dateToDisplay.toLocaleString('default', { month: 'long' });
+
+            let html = `<div class="calendar-nav">
+                            <button class="btn btn-edit" onclick="changeMonth(-1)">&lt; Prev</button>
+                            <h4>${monthName} ${year}</h4>
+                            <button class="btn btn-edit" onclick="changeMonth(1)">Next &gt;</button>
+                        </div>
+                        <table class="calendar">
+                            <thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+                            <tbody>`;
+            
+            let date = 1;
+            html += '<tr>';
+            // Add blank cells for the start of the month
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                html += '<td></td>';
+            }
+            // Fill in the days of the month
+            while (date <= daysInMonth) {
+                // If it's a Sunday (and not the first day), start a new row
+                if (new Date(year, month, date).getDay() === 0 && date !== 1) {
+                    html += '</tr><tr>';
+                }
+
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+                let className = 'day';
+                if(attendanceMap.has(dateString)) className += ` ${attendanceMap.get(dateString)}`;
+                if(dateString === todayString) className += ' today';
+                
+                html += `<td class="${className}">${date}</td>`;
+                date++;
+            }
+             // Add blank cells for the end of the month
+            while(new Date(year, month, date-1).getDay() !== 6) { // 6 = Saturday
+                html += '<td></td>';
+                date++;
+            }
+            html += '</tr></tbody></table>';
+            attendanceCalendarContainer.innerHTML = html;
+        }
+
+        // Attached to buttons via onclick attribute
+        function changeMonth(delta) {
+            calendarDate.setMonth(calendarDate.getMonth() + delta);
+            // Re-trigger the listener which will re-render the calendar for the new month
+            if (studentProfile) {
+                listenForStudentAttendance(studentProfile.id);
+            }
+        }
+    </script>
+</body>
+</html>

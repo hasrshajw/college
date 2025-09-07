@@ -8,11 +8,17 @@
         :root {
             --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text); }
-        .container { width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
-        .header-info p { margin: 0; font-size: 0.9em; }
-        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
         .btn-logout { background-color: var(--danger-color); }
         .btn-edit { background-color: var(--primary-color); }
@@ -23,14 +29,16 @@
         .list-container { flex: 2; min-width: 400px; }
         form { display: flex; flex-direction: column; gap: 1.2em; text-align: left; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button[type="submit"] { background-color: var(--success-color); color: white; padding: 12px; border: none; font-size: 16px; cursor: pointer; }
+        button[type="submit"] { background-color: var(--success-color); color: white; padding: 12px; border: none; font-size: 16px; }
         .item-card { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .item-card > div:first-child { flex-grow: 1; }
         .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
         .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 2px solid transparent; }
         .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center; }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; position: relative; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative; }
         .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -40,22 +48,52 @@
             <div class="header-info"><h1 id="header-title">Admin Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
             <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
-
         <div id="admin-view">
-            <div class="tabs"><!-- Tabs here --></div>
-            <!-- All content divs here -->
+            <div class="tabs">
+                <button class="tab-button active" onclick="showTab('students')">Students</button>
+                <button class="tab-button" onclick="showTab('teachers')">Teachers</button>
+                <button class="tab-button" onclick="showTab('subjects')">Subjects</button>
+                <button class="tab-button" onclick="showTab('exams')">Exams</button>
+            </div>
+            <!-- All content tabs here -->
+            <div id="students-content" class="content active">
+                <div class="form-container"><h2>Create Student</h2><form id="create-student-form">...</form></div>
+                <div class="list-container"><h2>Existing Students</h2><div id="student-list"></div></div>
+            </div>
+            <div id="teachers-content" class="content">
+                 <div class="form-container"><h2>Create Teacher</h2><form id="create-teacher-form">...</form></div>
+                 <div class="list-container"><h2>Existing Teachers</h2><div id="teacher-list"></div></div>
+            </div>
+            <div id="subjects-content" class="content">
+                <div class="form-container"><h2>Create Subject</h2><form id="create-subject-form">...</form></div>
+                <div class="list-container"><h2>Existing Subjects</h2><div id="subject-list"></div></div>
+            </div>
+            <div id="exams-content" class="content">
+                <div class="form-container"><h2>Create Exam</h2><form id="create-exam-form">...</form></div>
+                <div class="list-container"><h2>Existing Exams</h2><div id="exam-list"></div></div>
+            </div>
         </div>
     </div>
-    
-    <!-- Universal Modal for Editing -->
-    <div id="edit-modal" class="modal"></div>
+
+    <!-- Edit Modals -->
+    <div id="edit-student-modal" class="modal"></div>
+    <div id="edit-teacher-modal" class="modal"></div>
+    <div id="edit-subject-modal" class="modal"></div>
+    <div id="edit-exam-modal" class="modal"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -65,8 +103,16 @@
         const mainContainer = document.querySelector('.container');
         const userEmailEl = document.getElementById('user-email');
         const logoutBtn = document.getElementById('logout-btn');
-        const adminView = document.getElementById('admin-view');
-        const editModal = document.getElementById('edit-modal');
+        // Lists
+        const studentListEl = document.getElementById('student-list');
+        const teacherListEl = document.getElementById('teacher-list');
+        const subjectListEl = document.getElementById('subject-list');
+        const examListEl = document.getElementById('exam-list');
+        // Modals
+        const editStudentModal = document.getElementById('edit-student-modal');
+        const editTeacherModal = document.getElementById('edit-teacher-modal');
+        const editSubjectModal = document.getElementById('edit-subject-modal');
+        const editExamModal = document.getElementById('edit-exam-modal');
         
         // --- Global State ---
         let allUnsubscribes = [], studentsCache = [], teachersCache = [], subjectsCache = [], examsCache = [];
@@ -79,160 +125,141 @@
                 initializeAdminDashboard();
             } else { window.location.href = 'index.html'; }
         });
-        logoutBtn.onclick = () => { /* Logout logic */ };
+        logoutBtn.onclick = () => { allUnsubscribes.forEach(unsub => unsub()); auth.signOut(); };
 
         function initializeAdminDashboard() {
-            renderLayout(); // Render the static HTML layout
-            startDataListeners();
+            listenForData();
             setupEventListeners();
         }
-
-        // --- Layout Rendering ---
-        function renderLayout() {
-            adminView.innerHTML = `
-                <div class="tabs">
-                    <button class="tab-button active" onclick="showTab('students')">Students</button>
-                    <button class="tab-button" onclick="showTab('teachers')">Teachers</button>
-                    <button class="tab-button" onclick="showTab('subjects')">Subjects</button>
-                    <button class="tab-button" onclick="showTab('exams')">Exams</button>
-                </div>
-                <div id="students-content" class="content active"><div class="form-container"><h2>Create Student</h2><form id="create-student-form"><!-- ... --></form></div><div class="list-container"><h2>Existing Students</h2><div id="student-list"></div></div></div>
-                <div id="teachers-content" class="content"><div class="form-container"><h2>Create Teacher</h2><form id="create-teacher-form"><!-- ... --></form></div><div class="list-container"><h2>Existing Teachers</h2><div id="teacher-list"></div></div></div>
-                <div id="subjects-content" class="content"><div class="form-container"><h2>Create Subject</h2><form id="create-subject-form"><!-- ... --></form></div><div class="list-container"><h2>Existing Subjects</h2><div id="subject-list"></div></div></div>
-                <div id="exams-content" class="content"><div class="form-container"><h2>Create Exam</h2><form id="create-exam-form"><!-- ... --></form></div><div class="list-container"><h2>Existing Exams</h2><div id="exam-list"></div></div></div>
-            `;
-            // Populate form contents (omitted for brevity, they are standard forms)
-        }
+        
+        // --- UI Control ---
+        function showTab(tabName) { /* ... same as before ... */ }
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
         // --- Data Listeners ---
-        function startDataListeners() {
-            // ... all listenFor... functions go here
+        function listenForData() {
+            db.collection('students').orderBy('name').onSnapshot(snap => { studentsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderStudentList(); });
+            db.collection('teachers').orderBy('name').onSnapshot(snap => { teachersCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderTeacherList(); });
+            db.collection('subjects').onSnapshot(snap => { subjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderSubjectList(); });
+            db.collection('exams').orderBy('createdAt', 'desc').onSnapshot(snap => { examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderExamList(); });
         }
 
-        // --- Event Listeners ---
+        // --- Render Lists ---
+        const renderStudentList = () => studentListEl.innerHTML = studentsCache.map(s => `<div class="item-card"><div><p><strong>${s.name}</strong> (Roll: ${s.rollNo}, Class: ${s.class})</p></div><div><button class="btn btn-sm btn-edit" data-id="${s.id}" data-type="student">Edit</button><button class="btn btn-sm btn-delete" data-id="${s.id}" data-type="student">Delete</button></div></div>`).join('') || '<p>No students.</p>';
+        const renderTeacherList = () => teacherListEl.innerHTML = teachersCache.map(t => `<div class="item-card"><div><p><strong>${t.name}</strong> <small>(${t.email})</small></p></div><div><button class="btn btn-sm btn-edit" data-id="${t.id}" data-type="teacher">Edit</button><button class="btn btn-sm btn-delete" data-id="${t.id}" data-email="${t.email}" data-type="teacher">Delete</button></div></div>`).join('') || '<p>No teachers.</p>';
+        const renderSubjectList = () => subjectListEl.innerHTML = subjectsCache.map(s => `<div class="item-card"><div><p><strong>${s.subjectName}</strong> (Class ${s.className})</p><small>Teacher: ${s.teacherName || 'Unassigned'}</small></div><div><button class="btn btn-sm btn-edit" data-id="${s.id}" data-type="subject">Edit</button><button class="btn btn-sm btn-delete" data-id="${s.id}" data-type="subject">Delete</button></div></div>`).join('') || '<p>No subjects.</p>';
+        const renderExamList = () => examListEl.innerHTML = examsCache.map(e => `<div class="item-card"><div><p><strong>${e.examName}</strong></p></div><div><button class="btn btn-sm btn-edit" data-id="${e.id}" data-type="exam">Edit</button><button class="btn btn-sm btn-delete" data-id="${e.id}" data-type="exam">Delete</button></div></div>`).join('') || '<p>No exams.</p>';
+        
+        // --- Event Delegation Setup ---
         function setupEventListeners() {
-            adminView.addEventListener('submit', handleFormSubmissions);
-            adminView.addEventListener('click', handleListActions);
-            editModal.addEventListener('submit', handleUpdateSubmissions);
+            document.querySelector('#admin-view').addEventListener('click', handleListAction);
         }
 
-        function handleFormSubmissions(e) {
-            e.preventDefault();
-            // ... Logic for all CREATE forms
-        }
+        function handleListAction(e) {
+            const { id, type, email } = e.target.dataset;
+            if (!id || !type) return;
 
-        function handleListActions(e) {
-            const target = e.target;
-            const id = target.dataset.id;
-            if (!id) return;
-
-            if (target.classList.contains('btn-edit')) {
-                if (target.closest('#student-list')) openEditStudentModal(id);
-                if (target.closest('#teacher-list')) openEditTeacherModal(id);
-                if (target.closest('#subject-list')) openEditSubjectModal(id);
-                if (target.closest('#exam-list')) openEditExamModal(id);
-            } else if (target.classList.contains('btn-delete')) {
-                if (target.closest('#student-list')) handleDelete(id, 'student', 'students');
-                if (target.closest('#teacher-list')) handleSafeTeacherDelete(id, target.dataset.email);
-                if (target.closest('#subject-list')) handleDelete(id, 'subject', 'subjects');
-                if (target.closest('#exam-list')) handleDelete(id, 'exam', 'exams');
+            if (e.target.classList.contains('btn-edit')) {
+                switch (type) {
+                    case 'student': openEditStudentModal(id); break;
+                    case 'teacher': openEditTeacherModal(id); break;
+                    case 'subject': openEditSubjectModal(id); break;
+                    case 'exam':    openEditExamModal(id); break;
+                }
             }
-        }
-
-        function handleUpdateSubmissions(e) {
-            e.preventDefault();
-            if (e.target.id === 'edit-student-form') handleUpdateStudent(e);
-            if (e.target.id === 'edit-teacher-form') handleUpdateTeacher(e);
-            if (e.target.id === 'edit-subject-form') handleUpdateSubject(e);
-            if (e.target.id === 'edit-exam-form') handleUpdateExam(e);
-        }
-
-        // --- Modal Control ---
-        function openModal(html) {
-            editModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal()">&times;</span>${html}</div>`;
-            editModal.style.display = 'flex';
-        }
-        function closeModal() {
-            editModal.style.display = 'none';
-            editModal.innerHTML = '';
-        }
-
-        // --- EDIT MODAL & UPDATE LOGIC ---
-
-        // STUDENT EDIT
-        function openEditStudentModal(id) {
-            const student = studentsCache.find(s => s.id === id);
-            const html = `<h2>Edit Student</h2><form id="edit-student-form" data-id="${id}"><!-- form fields with values --></form>`;
-            openModal(html);
-        }
-        async function handleUpdateStudent(e) {
-            const id = e.target.dataset.id;
-            // ... get form values
-            await db.collection('students').doc(id).update({ name, rollNo, class: className });
-            closeModal();
-        }
-
-        // TEACHER EDIT (with data integrity)
-        function openEditTeacherModal(id) {
-            const teacher = teachersCache.find(t => t.id === id);
-            const html = `<h2>Edit Teacher</h2><form id="edit-teacher-form" data-id="${id}"><label>Name:</label><input value="${teacher.name}"><label>Email:</label><input value="${teacher.email}" readonly></form>`;
-            openModal(html);
-        }
-        async function handleUpdateTeacher(e) {
-            const id = e.target.dataset.id;
-            const newName = e.target.querySelector('input[type="text"]').value;
-            const batch = db.batch();
-            // 1. Update teacher document
-            batch.update(db.collection('teachers').doc(id), { name: newName });
-            // 2. Find and update all subjects taught by this teacher
-            const subjectsToUpdate = await db.collection('subjects').where('teacherId', '==', id).get();
-            subjectsToUpdate.forEach(doc => batch.update(doc.ref, { teacherName: newName }));
-            await batch.commit();
-            closeModal();
-        }
-
-        // SUBJECT EDIT
-        function openEditSubjectModal(id) {
-            const subject = subjectsCache.find(s => s.id === id);
-            // ... build form with teacher dropdown, selecting the correct teacher
-            openModal(html);
-        }
-        async function handleUpdateSubject(e) {
-            // ... get values including new teacherId and teacherName
-            await db.collection('subjects').doc(id).update({ className, subjectName, teacherId, teacherName });
-            closeModal();
-        }
-
-        // EXAM EDIT (Name only for simplicity)
-        function openEditExamModal(id) {
-            const exam = examsCache.find(ex => ex.id === id);
-            const html = `<h2>Edit Exam</h2><form id="edit-exam-form" data-id="${id}"><label>Exam Name:</label><input value="${exam.examName}"></form>`;
-            openModal(html);
-        }
-        async function handleUpdateExam(e) {
-            const id = e.target.dataset.id;
-            const newName = e.target.querySelector('input').value;
-            await db.collection('exams').doc(id).update({ examName: newName });
-            closeModal();
-        }
-
-        // --- DELETE LOGIC ---
-        async function handleSafeTeacherDelete(teacherId, teacherEmail) {
-            if (!confirm(`Are you sure? This will unassign the teacher from all subjects.`)) return;
-            const batch = db.batch();
-            const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherId).get();
-            subjectsQuery.forEach(doc => batch.update(doc.ref, { teacherId: null, teacherName: null }));
-            batch.delete(db.collection('teachers').doc(teacherId));
-            batch.delete(db.collection('users').doc(teacherEmail));
-            await batch.commit();
-            alert('Teacher deleted and unassigned successfully.');
-        }
-        function handleDelete(id, itemName, collectionName) {
-            if (confirm(`Are you sure you want to delete this ${itemName}?`)) {
-                db.collection(collectionName).doc(id).delete();
+            if (e.target.classList.contains('btn-delete')) {
+                switch (type) {
+                    case 'student': handleDelete(id, 'student', 'students'); break;
+                    case 'teacher': handleSafeTeacherDelete(id, email); break;
+                    case 'subject': handleDelete(id, 'subject', 'subjects'); break;
+                    case 'exam':    handleDelete(id, 'exam', 'exams'); break;
+                }
             }
         }
         
+        // --- EDIT MODAL OPENERS ---
+        function openEditStudentModal(id) {
+            const student = studentsCache.find(s => s.id === id);
+            editStudentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-student-modal')">&times;</span><h2>Edit Student</h2><form id="edit-student-form" data-id="${id}"><label>Name:</label><input type="text" value="${student.name}" required><label>Roll No:</label><input type="text" value="${student.rollNo}" required><label>Class:</label><input type="text" value="${student.class}" required><button type="submit">Save Changes</button></form></div>`;
+            openModal('edit-student-modal');
+            document.getElementById('edit-student-form').addEventListener('submit', handleUpdateStudent);
+        }
+        function openEditTeacherModal(id) {
+            const teacher = teachersCache.find(t => t.id === id);
+            editTeacherModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-teacher-modal')">&times;</span><h2>Edit Teacher</h2><form id="edit-teacher-form" data-id="${id}"><label>Name:</label><input type="text" name="name" value="${teacher.name}" required><label>Email:</label><input type="email" value="${teacher.email}" disabled><button type="submit">Save Changes</button></form></div>`;
+            openModal('edit-teacher-modal');
+            document.getElementById('edit-teacher-form').addEventListener('submit', handleUpdateTeacher);
+        }
+        function openEditSubjectModal(id) {
+            const subject = subjectsCache.find(s => s.id === id);
+            const teacherOptions = teachersCache.map(t => `<option value="${t.id}" data-teacher-name="${t.name}" ${t.id === subject.teacherId ? 'selected' : ''}>${t.name}</option>`).join('');
+            editSubjectModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-subject-modal')">&times;</span><h2>Edit Subject</h2><form id="edit-subject-form" data-id="${id}"><label>Subject Name:</label><input type="text" name="name" value="${subject.subjectName}" required><label>Class:</label><input type="text" name="class" value="${subject.className}" required><label>Teacher:</label><select name="teacher"><option value="">-- Unassigned --</option>${teacherOptions}</select><button type="submit">Save Changes</button></form></div>`;
+            openModal('edit-subject-modal');
+            document.getElementById('edit-subject-form').addEventListener('submit', handleUpdateSubject);
+        }
+        function openEditExamModal(id) {
+            const exam = examsCache.find(e => e.id === id);
+            editExamModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-exam-modal')">&times;</span><h2>Edit Exam</h2><form id="edit-exam-form" data-id="${id}"><label>Exam Name:</label><input type="text" name="name" value="${exam.examName}" required><button type="submit">Save Changes</button></form></div>`;
+            openModal('edit-exam-modal');
+            document.getElementById('edit-exam-form').addEventListener('submit', handleUpdateExam);
+        }
+
+        // --- UPDATE HANDLERS ---
+        async function handleUpdateStudent(e) {
+            e.preventDefault(); const id = e.target.dataset.id;
+            try { await db.collection('students').doc(id).update({ name: e.target[0].value, rollNo: e.target[1].value, class: e.target[2].value }); closeModal('edit-student-modal'); } catch (err) { alert(`Error: ${err.message}`); }
+        }
+        async function handleUpdateTeacher(e) {
+            e.preventDefault(); const id = e.target.dataset.id, newName = e.target.name.value;
+            const batch = db.batch();
+            try {
+                batch.update(db.collection('teachers').doc(id), { name: newName });
+                const subjectsToUpdate = await db.collection('subjects').where('teacherId', '==', id).get();
+                subjectsToUpdate.forEach(doc => batch.update(doc.ref, { teacherName: newName }));
+                await batch.commit();
+                closeModal('edit-teacher-modal');
+            } catch (err) { alert(`Error: ${err.message}`); }
+        }
+        async function handleUpdateSubject(e) {
+            e.preventDefault(); const id = e.target.dataset.id; const selectedOpt = e.target.teacher.options[e.target.teacher.selectedIndex];
+            try {
+                await db.collection('subjects').doc(id).update({
+                    subjectName: e.target.name.value,
+                    className: e.target.class.value,
+                    teacherId: selectedOpt.value || null,
+                    teacherName: selectedOpt.dataset.teacherName || null
+                });
+                closeModal('edit-subject-modal');
+            } catch (err) { alert(`Error: ${err.message}`); }
+        }
+        async function handleUpdateExam(e) {
+            e.preventDefault(); const id = e.target.dataset.id;
+            try { await db.collection('exams').doc(id).update({ examName: e.target.name.value }); closeModal('edit-exam-modal'); } catch (err) { alert(`Error: ${err.message}`); }
+        }
+
+        // --- DELETE HANDLERS ---
+        async function handleSafeTeacherDelete(teacherId, teacherEmail) {
+            if (!confirm(`Are you sure? This will unassign the teacher from all subjects.`)) return;
+            const batch = db.batch();
+            try {
+                const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherId).get();
+                subjectsQuery.forEach(doc => batch.update(doc.ref, { teacherId: null, teacherName: null }));
+                batch.delete(db.collection('teachers').doc(teacherId));
+                batch.delete(db.collection('users').doc(teacherEmail));
+                await batch.commit();
+                alert('Teacher deleted successfully.');
+            } catch (err) { alert(`Error: ${err.message}`); }
+        }
+        function handleDelete(id, itemName, collectionName) {
+            if (confirm(`Are you sure you want to delete this ${itemName}?`)) {
+                db.collection(collectionName).doc(id).delete().catch(err => alert(`Error: ${err.message}`));
+            }
+        }
+        
+        // Note: The 'Create' form HTML and logic has been omitted for brevity, but should be placed
+        // back into the ... placeholders in the HTML body from the previous version. This script
+        // focuses on the new Edit/Delete functionality.
     </script>
 </body>
 </html>

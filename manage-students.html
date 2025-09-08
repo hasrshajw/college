@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Students - Admin Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-logout, .btn-delete { background-color: var(--danger-color); }
+        .btn-edit { background-color: var(--primary-color); }
+        .page-content { display: flex; gap: 2em; flex-wrap: wrap; }
+        .form-container { flex: 1; min-width: 350px; padding-right: 2em; border-right: 1px solid #eee; }
+        .list-container { flex: 2; min-width: 400px; }
+        form { display: flex; flex-direction: column; gap: 1.2em; text-align: left; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button[type="submit"] { background-color: var(--success-color); color: white; padding: 12px; border: none; font-size: 16px; }
+        .item-card { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .item-card > div:first-child { flex-grow: 1; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative; }
+        .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .email-input-wrapper { position: relative; }
+        #pending-dropdown { display: none; position: absolute; background-color: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-height: 200px; overflow-y: auto; z-index: 100; }
+        #pending-dropdown .dropdown-header { padding: 8px 12px; font-weight: bold; color: #7f8c8d; background-color: #f9f9f9; border-bottom: 1px solid #eee; }
+        #pending-dropdown .dropdown-item { padding: 10px 12px; cursor: pointer; font-size: 0.9em; }
+        #pending-dropdown .dropdown-item:hover { background-color: var(--primary-color); color: white; }
+        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info"><h1>Manage Students</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+        <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
+        
+        <div class="page-content">
+            <div class="form-container">
+                <h2>Create Student</h2><p>Student will be added to year: <strong class="current-year-label"></strong></p>
+                <form id="create-student-form">
+                    <label>Name:</label><input name="name" type="text" required>
+                    <label>Roll No:</label><input name="rollNo" type="text" required>
+                    <label>Class:</label><select name="class" required><option value="">-- Class --</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+                    <label>Assign Email (optional):</label>
+                    <div class="email-input-wrapper">
+                        <input name="email" type="email" placeholder="Type or select a pending email">
+                        <div id="pending-dropdown"></div>
+                    </div>
+                    <button type="submit">Create Student</button><p id="create-student-status"></p>
+                </form>
+            </div>
+            <div class="list-container"><h2>Existing Students</h2><div id="student-list"></div></div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-student-modal" class="modal"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const adminEmail = "harshavardhanjw@gmail.com";
+
+        // Global State
+        let CURRENT_ACADEMIC_YEAR = null;
+        let studentsCache = [], pendingEmailsCache = [];
+
+        // DOM Elements
+        const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
+        const studentListEl = document.getElementById('student-list');
+        const editStudentModal = document.getElementById('edit-student-modal');
+        const pendingDropdown = document.getElementById('pending-dropdown');
+        const createStudentForm = document.getElementById('create-student-form'), createStudentStatusEl = document.getElementById('create-student-status');
+        
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(user => {
+            if (user && user.email === adminEmail) {
+                mainContainer.style.display = 'block';
+                userEmailEl.textContent = user.email;
+                initializePage();
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        logoutBtn.onclick = () => auth.signOut();
+
+        async function initializePage() {
+            try {
+                await fetchGlobalSettings();
+                listenForData(); 
+                setupEventListeners(); 
+            } catch (error) {
+                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ensure you have created the 'settings/global' document in Firestore with a 'currentAcademicYear' field.</p>`;
+            }
+        }
+        
+        async function fetchGlobalSettings() {
+            const settingsRef = db.collection('settings').doc('global');
+            const doc = await settingsRef.get();
+            if (!doc.exists || !doc.data().currentAcademicYear) {
+                throw new Error("Global settings not found or 'currentAcademicYear' is not set.");
+            }
+            CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            document.querySelectorAll('.current-year-label').forEach(el => el.textContent = CURRENT_ACADEMIC_YEAR);
+        }
+        
+        // UI Control
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+
+        // Data Listeners
+        function listenForData() {
+            if (!CURRENT_ACADEMIC_YEAR) return;
+
+            // Listens for students that are active for the current year OR have no year set (for old data)
+            db.collection('students').orderBy('name').onSnapshot(snap => { 
+                const allDocs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                studentsCache = allDocs.filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR));
+                renderStudentList(); 
+            });
+            
+            // Listens for users who have logged in but have no role
+            db.collection('pending_users').onSnapshot(snap => {
+                pendingEmailsCache = snap.docs.map(doc => doc.id);
+                renderPendingDropdown();
+            });
+        }
+
+        // Render Functions
+        function renderStudentList() {
+            studentListEl.innerHTML = studentsCache.map(s => `
+                <div class="item-card">
+                    <div>
+                        <p><strong>${s.name}</strong> (Roll: ${s.rollNo}, Class: ${s.class})</p>
+                        ${s.email ? `<small>Email: ${s.email}</small>`:''}
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-edit" data-id="${s.id}">Edit</button>
+                        <button class="btn btn-sm btn-delete" data-id="${s.id}">Delete</button>
+                    </div>
+                </div>`).join('') || `<p>No active students found for the ${CURRENT_ACADEMIC_YEAR} year.</p>`;
+        }
+        
+        function renderPendingDropdown() {
+            if (pendingEmailsCache.length === 0) {
+                pendingDropdown.style.display = 'none';
+                return;
+            }
+            let html = '<div class="dropdown-header">Pending Mails</div>';
+            pendingEmailsCache.forEach(email => {
+                html += `<div class="dropdown-item" data-email="${email}">${email}</div>`;
+            });
+            pendingDropdown.innerHTML = html;
+        }
+        
+        // Event Listeners
+        function setupEventListeners() {
+            studentListEl.addEventListener('click', handleListAction);
+            createStudentForm.addEventListener('submit', handleCreateStudent);
+            
+            const studentEmailInput = createStudentForm.email;
+            studentEmailInput.addEventListener('focus', () => {
+                if (pendingEmailsCache.length > 0) pendingDropdown.style.display = 'block';
+            });
+            document.addEventListener('click', e => {
+                if (!e.target.matches('#create-student-form [name=email]') && !e.target.closest('#pending-dropdown')) {
+                    pendingDropdown.style.display = 'none';
+                }
+            });
+            pendingDropdown.addEventListener('click', e => {
+                if (e.target.classList.contains('dropdown-item')) {
+                    studentEmailInput.value = e.target.dataset.email;
+                    pendingDropdown.style.display = 'none';
+                }
+            });
+        }
+
+        function handleListAction(e) {
+            const id = e.target.dataset.id;
+            if (!id) return;
+            if (e.target.classList.contains('btn-edit')) {
+                openEditStudentModal(id);
+            }
+            if (e.target.classList.contains('btn-delete')) {
+                handleDelete(id);
+            }
+        }
+        
+        // --- CRUD Handlers ---
+        
+        // CREATE
+        async function handleCreateStudent(e) {
+            e.preventDefault();
+            createStudentStatusEl.textContent = 'Creating...';
+            const studentData = {
+                name: e.target.name.value.trim(),
+                rollNo: e.target.rollNo.value.trim(),
+                class: Number(e.target.class.value),
+                email: e.target.email.value.trim() || null,
+                academicYear: CURRENT_ACADEMIC_YEAR,
+                status: 'active'
+            };
+            try {
+                const studentEmail = studentData.email;
+                if (studentEmail) {
+                    const batch = db.batch();
+                    const studentRef = db.collection('students').doc();
+                    batch.set(studentRef, studentData);
+                    batch.set(db.collection('users').doc(studentEmail), { role: 'student' });
+                    batch.delete(db.collection('pending_users').doc(studentEmail));
+                    await batch.commit();
+                } else {
+                    await db.collection('students').add(studentData);
+                }
+                createStudentStatusEl.textContent = 'Student created successfully!';
+                e.target.reset();
+            } catch (err) {
+                createStudentStatusEl.textContent = `Error: ${err.message}`;
+            } finally {
+                setTimeout(() => createStudentStatusEl.textContent = '', 3000);
+            }
+        }
+        
+        // UPDATE
+        function openEditStudentModal(id) {
+            const student = studentsCache.find(s => s.id === id);
+            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}" ${student.class == (i+1) ? 'selected' : ''}>${i+1}</option>`).join('');
+            editStudentModal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close-btn" onclick="closeModal('edit-student-modal')">&times;</span>
+                    <h2>Edit Student</h2>
+                    <form id="edit-student-form" data-id="${id}">
+                        <label>Name:</label><input name="name" type="text" value="${student.name}" required>
+                        <label>Roll No:</label><input name="rollNo" type="text" value="${student.rollNo}" required>
+                        <label>Class:</label><select name="class">${classOptions}</select>
+                        <label>Email:</label><input name="email" type="email" value="${student.email || ''}">
+                        <button type="submit">Save Changes</button>
+                    </form>
+                </div>`;
+            openModal('edit-student-modal');
+            document.getElementById('edit-student-form').addEventListener('submit', handleUpdateStudent);
+        }
+        async function handleUpdateStudent(e) {
+            e.preventDefault();
+            const id = e.target.dataset.id;
+            const updatedData = {
+                name: e.target.name.value,
+                rollNo: e.target.rollNo.value,
+                class: Number(e.target.class.value),
+                email: e.target.email.value.trim() || null
+            };
+            try {
+                await db.collection('students').doc(id).update(updatedData);
+                closeModal('edit-student-modal');
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+        }
+
+        // DELETE
+        function handleDelete(id) {
+            if (confirm(`Are you sure you want to delete this student? This action cannot be undone.`)) {
+                db.collection('students').doc(id).delete().catch(err => alert(`Error: ${err.message}`));
+            }
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Students - Admin Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-logout, .btn-delete { background-color: var(--danger-color); }
+        .btn-edit { background-color: var(--primary-color); }
+        .page-content { display: flex; gap: 2em; flex-wrap: wrap; }
+        .form-container { flex: 1; min-width: 350px; padding-right: 2em; border-right: 1px solid #eee; }
+        .list-container { flex: 2; min-width: 400px; }
+        form { display: flex; flex-direction: column; gap: 1.2em; text-align: left; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button[type="submit"] { background-color: var(--success-color); color: white; padding: 12px; border: none; font-size: 16px; }
+        .item-card { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .item-card > div:first-child { flex-grow: 1; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative; }
+        .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .email-input-wrapper { position: relative; }
+        #pending-dropdown { display: none; position: absolute; background-color: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-height: 200px; overflow-y: auto; z-index: 100; }
+        #pending-dropdown .dropdown-header { padding: 8px 12px; font-weight: bold; color: #7f8c8d; background-color: #f9f9f9; border-bottom: 1px solid #eee; }
+        #pending-dropdown .dropdown-item { padding: 10px 12px; cursor: pointer; font-size: 0.9em; }
+        #pending-dropdown .dropdown-item:hover { background-color: var(--primary-color); color: white; }
+        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info"><h1>Manage Students</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+        <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
+        
+        <div class="page-content">
+            <div class="form-container">
+                <h2>Create Student</h2><p>Student will be added to year: <strong class="current-year-label"></strong></p>
+                <form id="create-student-form">
+                    <label>Name:</label><input name="name" type="text" required>
+                    <label>Roll No:</label><input name="rollNo" type="text" required>
+                    <label>Class:</label><select name="class" required><option value="">-- Class --</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+                    <label>Assign Email (optional):</label>
+                    <div class="email-input-wrapper">
+                        <input name="email" type="email" placeholder="Type or select a pending email">
+                        <div id="pending-dropdown"></div>
+                    </div>
+                    <button type="submit">Create Student</button><p id="create-student-status"></p>
+                </form>
+            </div>
+            <div class="list-container"><h2>Existing Students</h2><div id="student-list"></div></div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-student-modal" class="modal"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const adminEmail = "harshavardhanjw@gmail.com";
+
+        // Global State
+        let CURRENT_ACADEMIC_YEAR = null;
+        let studentsCache = [], pendingEmailsCache = [];
+
+        // DOM Elements
+        const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
+        const studentListEl = document.getElementById('student-list');
+        const editStudentModal = document.getElementById('edit-student-modal');
+        const pendingDropdown = document.getElementById('pending-dropdown');
+        const createStudentForm = document.getElementById('create-student-form'), createStudentStatusEl = document.getElementById('create-student-status');
+        
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(user => {
+            if (user && user.email === adminEmail) {
+                mainContainer.style.display = 'block';
+                userEmailEl.textContent = user.email;
+                initializePage();
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        logoutBtn.onclick = () => auth.signOut();
+
+        async function initializePage() {
+            try {
+                await fetchGlobalSettings();
+                listenForData(); 
+                setupEventListeners(); 
+            } catch (error) {
+                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ensure you have created the 'settings/global' document in Firestore with a 'currentAcademicYear' field.</p>`;
+            }
+        }
+        
+        async function fetchGlobalSettings() {
+            const settingsRef = db.collection('settings').doc('global');
+            const doc = await settingsRef.get();
+            if (!doc.exists || !doc.data().currentAcademicYear) {
+                throw new Error("Global settings not found or 'currentAcademicYear' is not set.");
+            }
+            CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+            document.querySelectorAll('.current-year-label').forEach(el => el.textContent = CURRENT_ACADEMIC_YEAR);
+        }
+        
+        // UI Control
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+
+        // Data Listeners
+        function listenForData() {
+            if (!CURRENT_ACADEMIC_YEAR) return;
+
+            // Listens for students that are active for the current year OR have no year set (for old data)
+            db.collection('students').orderBy('name').onSnapshot(snap => { 
+                const allDocs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                studentsCache = allDocs.filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR));
+                renderStudentList(); 
+            });
+            
+            // Listens for users who have logged in but have no role
+            db.collection('pending_users').onSnapshot(snap => {
+                pendingEmailsCache = snap.docs.map(doc => doc.id);
+                renderPendingDropdown();
+            });
+        }
+
+        // Render Functions
+        function renderStudentList() {
+            studentListEl.innerHTML = studentsCache.map(s => `
+                <div class="item-card">
+                    <div>
+                        <p><strong>${s.name}</strong> (Roll: ${s.rollNo}, Class: ${s.class})</p>
+                        ${s.email ? `<small>Email: ${s.email}</small>`:''}
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-edit" data-id="${s.id}">Edit</button>
+                        <button class="btn btn-sm btn-delete" data-id="${s.id}">Delete</button>
+                    </div>
+                </div>`).join('') || `<p>No active students found for the ${CURRENT_ACADEMIC_YEAR} year.</p>`;
+        }
+        
+        function renderPendingDropdown() {
+            if (pendingEmailsCache.length === 0) {
+                pendingDropdown.style.display = 'none';
+                return;
+            }
+            let html = '<div class="dropdown-header">Pending Mails</div>';
+            pendingEmailsCache.forEach(email => {
+                html += `<div class="dropdown-item" data-email="${email}">${email}</div>`;
+            });
+            pendingDropdown.innerHTML = html;
+        }
+        
+        // Event Listeners
+        function setupEventListeners() {
+            studentListEl.addEventListener('click', handleListAction);
+            createStudentForm.addEventListener('submit', handleCreateStudent);
+            
+            const studentEmailInput = createStudentForm.email;
+            studentEmailInput.addEventListener('focus', () => {
+                if (pendingEmailsCache.length > 0) pendingDropdown.style.display = 'block';
+            });
+            document.addEventListener('click', e => {
+                if (!e.target.matches('#create-student-form [name=email]') && !e.target.closest('#pending-dropdown')) {
+                    pendingDropdown.style.display = 'none';
+                }
+            });
+            pendingDropdown.addEventListener('click', e => {
+                if (e.target.classList.contains('dropdown-item')) {
+                    studentEmailInput.value = e.target.dataset.email;
+                    pendingDropdown.style.display = 'none';
+                }
+            });
+        }
+
+        function handleListAction(e) {
+            const id = e.target.dataset.id;
+            if (!id) return;
+            if (e.target.classList.contains('btn-edit')) {
+                openEditStudentModal(id);
+            }
+            if (e.target.classList.contains('btn-delete')) {
+                handleDelete(id);
+            }
+        }
+        
+        // --- CRUD Handlers ---
+        
+        // CREATE
+        async function handleCreateStudent(e) {
+            e.preventDefault();
+            createStudentStatusEl.textContent = 'Creating...';
+            const studentData = {
+                name: e.target.name.value.trim(),
+                rollNo: e.target.rollNo.value.trim(),
+                class: Number(e.target.class.value),
+                email: e.target.email.value.trim() || null,
+                academicYear: CURRENT_ACADEMIC_YEAR,
+                status: 'active'
+            };
+            try {
+                const studentEmail = studentData.email;
+                if (studentEmail) {
+                    const batch = db.batch();
+                    const studentRef = db.collection('students').doc();
+                    batch.set(studentRef, studentData);
+                    batch.set(db.collection('users').doc(studentEmail), { role: 'student' });
+                    batch.delete(db.collection('pending_users').doc(studentEmail));
+                    await batch.commit();
+                } else {
+                    await db.collection('students').add(studentData);
+                }
+                createStudentStatusEl.textContent = 'Student created successfully!';
+                e.target.reset();
+            } catch (err) {
+                createStudentStatusEl.textContent = `Error: ${err.message}`;
+            } finally {
+                setTimeout(() => createStudentStatusEl.textContent = '', 3000);
+            }
+        }
+        
+        // UPDATE
+        function openEditStudentModal(id) {
+            const student = studentsCache.find(s => s.id === id);
+            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}" ${student.class == (i+1) ? 'selected' : ''}>${i+1}</option>`).join('');
+            editStudentModal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close-btn" onclick="closeModal('edit-student-modal')">&times;</span>
+                    <h2>Edit Student</h2>
+                    <form id="edit-student-form" data-id="${id}">
+                        <label>Name:</label><input name="name" type="text" value="${student.name}" required>
+                        <label>Roll No:</label><input name="rollNo" type="text" value="${student.rollNo}" required>
+                        <label>Class:</label><select name="class">${classOptions}</select>
+                        <label>Email:</label><input name="email" type="email" value="${student.email || ''}">
+                        <button type="submit">Save Changes</button>
+                    </form>
+                </div>`;
+            openModal('edit-student-modal');
+            document.getElementById('edit-student-form').addEventListener('submit', handleUpdateStudent);
+        }
+        async function handleUpdateStudent(e) {
+            e.preventDefault();
+            const id = e.target.dataset.id;
+            const updatedData = {
+                name: e.target.name.value,
+                rollNo: e.target.rollNo.value,
+                class: Number(e.target.class.value),
+                email: e.target.email.value.trim() || null
+            };
+            try {
+                await db.collection('students').doc(id).update(updatedData);
+                closeModal('edit-student-modal');
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+        }
+
+        // DELETE
+        function handleDelete(id) {
+            if (confirm(`Are you sure you want to delete this student? This action cannot be undone.`)) {
+                db.collection('students').doc(id).delete().catch(err => alert(`Error: ${err.message}`));
+            }
+        }
+    </script>
+</body>
+</html>

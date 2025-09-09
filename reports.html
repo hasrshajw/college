@@ -203,20 +203,32 @@
             const selectedExamId = marksExamSelect.value;
             if (!selectedClass || !selectedExamId) { alert('Please select a class and an exam.'); return; }
             marksReportContainer.innerHTML = `<div class="status-message">Generating mark sheet...</div>`;
+
             const selectedExam = examsCache.find(e => e.id === selectedExamId);
             const studentsInClass = studentsCache.filter(s => s.class == selectedClass).sort((a,b) => a.rollNo.localeCompare(b.rollNo, undefined, {numeric: true}));
-            if (studentsInClass.length === 0) { marksReportContainer.innerHTML = '<p>No active students found in this class to generate a report.</p>'; return; }
-            const studentIds = studentsInClass.map(s => s.id);
-            const relevantSubjects = Object.keys(selectedExam.marksStructure).filter(key => key.startsWith(`CLASS_${selectedClass}_`)).map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
             
-            // ** THE FIX **: Query for marks using the definitive list of student IDs for this class and year.
-            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).where('studentId', 'in', studentIds).get();
+            if (studentsInClass.length === 0) {
+                marksReportContainer.innerHTML = '<p>No active students found in this class to generate a report.</p>';
+                return;
+            }
+
+            const relevantSubjects = Object.keys(selectedExam.marksStructure)
+                .filter(key => key.startsWith(`CLASS_${selectedClass}_`))
+                .map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
+            
+            // ** THE FIX **: Fetch all marks for the exam and filter by class. This is robust and avoids the `in` query limit.
+            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).where('class', '==', selectedClass).get();
             const marksMap = new Map();
             marksSnap.forEach(doc => marksMap.set(doc.data().studentId, doc.data().marks));
 
             let reportHtml = `<div class="report-container"><div class="report-header"><h3>Mark Sheet: ${selectedExam.examName} - Class ${selectedClass}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('marks-report-table', 'marksheet.csv')">Export</button></div></div><table class="report-table" id="marks-report-table"><thead><tr><th>Roll No</th><th>Name</th>`;
-            relevantSubjects.forEach(sub => reportHtml += `<th>${sub} (${selectedExam.marksStructure[`CLASS_${selectedClass}_${sub.replace(/\s+/g, '_').toUpperCase()}`]})</th>`);
+            relevantSubjects.forEach(sub => {
+                const subjectKey = `CLASS_${selectedClass}_${sub.replace(/\s+/g, '_').toUpperCase()}`;
+                const maxMarks = selectedExam.marksStructure[subjectKey] || '-';
+                reportHtml += `<th>${sub} (${maxMarks})</th>`;
+            });
             reportHtml += `</tr></thead><tbody>`;
+
             studentsInClass.forEach(student => {
                 reportHtml += `<tr><td>${student.rollNo}</td><td>${student.name}</td>`;
                 const studentMarks = marksMap.get(student.id) || {};
@@ -240,7 +252,7 @@
                 csv.push(rowData.join(","));
             }
             const downloadLink = document.createElement("a");
-            downloadLink.href = 'data:text/csv;charset=utf-f8,' + encodeURI(csv.join("\n"));
+            downloadLink.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv.join("\n"));
             downloadLink.download = filename;
             document.body.appendChild(downloadLink);
             downloadLink.click();

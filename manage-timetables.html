@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Timetables - Admin Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn-logout { background-color: var(--danger-color); }
+        .btn-success { background-color: var(--success-color); }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
+
+        .controls-bar { display: flex; gap: 1em; align-items: center; background: var(--light-bg); padding: 1em; border-radius: 8px; margin-bottom: 1.5em; }
+        .controls-bar select { min-width: 200px; }
+        #save-timetable-btn { margin-left: auto; }
+
+        .timetable-container { overflow-x: auto; }
+        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .timetable th, .timetable td { border: 1px solid #ddd; padding: 4px; text-align: center; }
+        .timetable th { background-color: var(--light-bg); padding: 12px 8px; }
+        .timetable td:first-child { font-weight: bold; background-color: var(--light-bg); }
+        .timetable select { width: 100%; height: 100%; border: none; background: transparent; font-size: 0.9em; text-align: center; }
+        .timetable select:focus { outline: 2px solid var(--primary-color); }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info"><h1>Manage Timetables</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+        <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
+        
+        <div class="controls-bar">
+            <label for="class-select">Select Class:</label>
+            <select id="class-select">
+                <option value="">-- Select a Class --</option>
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+            </select>
+            <button id="save-timetable-btn" class="btn btn-success" disabled>Save Timetable</button>
+        </div>
+        <p id="timetable-status"></p>
+        
+        <div id="timetable-container" class="timetable-container" style="display: none;">
+            <table class="timetable" id="timetable-grid"></table>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const adminEmail = "harshavardhanjw@gmail.com";
+
+        // --- GLOBAL STATE ---
+        let CURRENT_ACADEMIC_YEAR = null;
+        let allSubjectsCache = [];
+        const timeSlots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-01:00", "02:00-03:00", "03:00-04:00"];
+        const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+        // DOM Elements
+        const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
+        const classSelect = document.getElementById('class-select');
+        const saveTimetableBtn = document.getElementById('save-timetable-btn');
+        const timetableContainer = document.getElementById('timetable-container');
+        const timetableGridEl = document.getElementById('timetable-grid');
+        const timetableStatusEl = document.getElementById('timetable-status');
+        
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(user => {
+            if (user && user.email === adminEmail) { mainContainer.style.display = 'block'; userEmailEl.textContent = user.email; initializePage(); } 
+            else { window.location.href = 'index.html'; }
+        });
+        logoutBtn.onclick = () => auth.signOut();
+
+        async function initializePage() {
+            try {
+                await fetchGlobalSettings();
+                listenForData(); 
+                setupEventListeners(); 
+            } catch (error) {
+                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ensure you have created the 'settings/global' document in Firestore.</p>`;
+            }
+        }
+        
+        async function fetchGlobalSettings() {
+            const settingsRef = db.collection('settings').doc('global');
+            const doc = await settingsRef.get();
+            if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
+            CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+        }
+
+        // --- DATA LISTENER ---
+        function listenForData() {
+            db.collection('subjects').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => {
+                allSubjectsCache = snap.docs.map(doc => doc.data());
+            });
+        }
+        
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            classSelect.addEventListener('change', handleClassChange);
+            saveTimetableBtn.addEventListener('click', handleSaveTimetable);
+        }
+
+        async function handleClassChange() {
+            const selectedClass = classSelect.value;
+            timetableContainer.style.display = 'none';
+            saveTimetableBtn.disabled = true;
+            if (!selectedClass) return;
+
+            renderTimetableGrid(selectedClass);
+            await loadTimetableData(selectedClass);
+            timetableContainer.style.display = 'block';
+            saveTimetableBtn.disabled = false;
+        }
+
+        // --- RENDERING THE TIMETABLE ---
+        function renderTimetableGrid(selectedClass) {
+            const subjectsForClass = allSubjectsCache.filter(s => s.className === selectedClass);
+            const subjectOptions = '<option value="">-- Free --</option>' + subjectsForClass.map(s => `<option value="${s.subjectName}">${s.subjectName}</option>`).join('');
+
+            let gridHtml = `<thead><tr><th>Time</th>`;
+            days.forEach(day => gridHtml += `<th>${day.charAt(0).toUpperCase() + day.slice(1)}</th>`);
+            gridHtml += `</tr></thead><tbody>`;
+
+            timeSlots.forEach((slot, periodIndex) => {
+                gridHtml += `<tr><td>${slot}</td>`;
+                days.forEach(day => {
+                    gridHtml += `<td><select data-day="${day}" data-period="${periodIndex}">${subjectOptions}</select></td>`;
+                });
+                gridHtml += `</tr>`;
+            });
+            gridHtml += `</tbody>`;
+            timetableGridEl.innerHTML = gridHtml;
+        }
+
+        async function loadTimetableData(selectedClass) {
+            timetableStatusEl.textContent = 'Loading existing timetable...';
+            const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
+            try {
+                const doc = await db.collection('timetables').doc(docId).get();
+                if (doc.exists) {
+                    const schedule = doc.data().schedule;
+                    for (const day in schedule) {
+                        schedule[day].forEach((subject, periodIndex) => {
+                            const selectEl = document.querySelector(`select[data-day='${day}'][data-period='${periodIndex}']`);
+                            if (selectEl) selectEl.value = subject || '';
+                        });
+                    }
+                }
+                timetableStatusEl.textContent = 'Timetable loaded. You can now make changes.';
+            } catch (error) {
+                timetableStatusEl.textContent = `Error loading timetable: ${error.message}`;
+            }
+        }
+
+        // --- SAVING THE TIMETABLE ---
+        async function handleSaveTimetable() {
+            const selectedClass = classSelect.value;
+            if (!selectedClass) return;
+
+            timetableStatusEl.textContent = 'Saving...';
+            saveTimetableBtn.disabled = true;
+
+            const schedule = {};
+            days.forEach(day => {
+                schedule[day] = [];
+                timeSlots.forEach((_, periodIndex) => {
+                    const selectEl = document.querySelector(`select[data-day='${day}'][data-period='${periodIndex}']`);
+                    schedule[day].push(selectEl.value || null);
+                });
+            });
+
+            const timetableData = {
+                className: selectedClass,
+                academicYear: CURRENT_ACADEMIC_YEAR,
+                schedule
+            };
+
+            const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
+            try {
+                await db.collection('timetables').doc(docId).set(timetableData);
+                timetableStatusEl.textContent = 'Timetable saved successfully!';
+            } catch (error) {
+                timetableStatusEl.textContent = `Error saving timetable: ${error.message}`;
+            } finally {
+                setTimeout(() => timetableStatusEl.textContent = '', 3000);
+                saveTimetableBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

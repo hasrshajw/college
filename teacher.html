@@ -131,7 +131,7 @@
         async function initializeTeacherDashboard() {
             try {
                 await fetchGlobalSettings();
-                listenForData(); // Changed the listener function name for clarity
+                listenForData();
                 attDateEl.valueAsDate = new Date();
                 loadAttBtn.onclick = loadAttendanceSheet;
                 attSheetContainer.addEventListener('click', handleSheetClick);
@@ -158,20 +158,18 @@
         // --- DATA LOADING & RENDERING ---
         function listenForData() {
             // ** FIXED DATA FLOW **
-            // 1. Listen for exams in the current year.
-            db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => {
-                examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderMarksEntryTaskList(); // Re-render tasks when exams change
-            });
-
-            // 2. Listen for subjects assigned to this teacher (across all years for flexibility, then filter).
+            // 1. Listen for subjects assigned to this teacher (backward-compatible).
             db.collection('subjects').where('teacherId', '==', currentTeacher.id).onSnapshot(snap => {
-                // Filter subjects for current year and also include old data without a year tag
                 mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
                     .filter(s => !s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR);
-                
-                renderMarksEntryTaskList(); // Re-render tasks when subjects change
                 populateClassDropdowns();
+                renderMarksEntryTaskList(); 
+            });
+
+            // 2. Listen for exams ONLY in the current year.
+            db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => {
+                examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderMarksEntryTaskList(); 
             });
         }
         

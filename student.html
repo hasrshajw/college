@@ -19,59 +19,77 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         h1, h2, h3 { color: var(--dark-text); }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1em; }
         .header-actions { display: flex; gap: 1em; }
         .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
         .btn:hover { opacity: 0.9; }
         .btn-logout { background-color: var(--danger-color); }
         .btn-switch { background-color: var(--warning-color); }
         
-        .student-item { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); }
-        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; margin-top: 2em; }
-        
-        /* Profile Selector Styles */
+        /* Profile Selector View */
         #profile-selector-view { text-align: center; }
-        .profile-card { display: block; background: #fff; border: 1px solid #ddd; padding: 1.5em; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; text-align: left; }
-        .profile-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        
-        /* Attendance & Marks Styles */
-        .attendance-summary { background: var(--light-bg); padding: 1em; border-radius: 8px; margin-top: 1em; }
-        .percentage-bar { background: #e0e0e0; border-radius: 5px; overflow: hidden; height: 25px; margin-top: 0.5em; }
-        .percentage-fill { background: var(--success-color); height: 100%; text-align: center; color: white; line-height: 25px; transition: width 0.5s; font-weight: bold; }
+        .profile-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5em; margin-top: 2em; }
+        .profile-selector-card { display: flex; align-items: center; gap: 1em; background: #fff; border: 1px solid #ddd; padding: 1.5em; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; text-align: left; }
+        .profile-selector-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-left: 4px solid var(--primary-color); }
+        .profile-selector-card .icon { flex-shrink: 0; }
+        .profile-selector-card h3 { margin: 0 0 0.25em 0; }
+        .profile-selector-card p { margin: 0; color: var(--light-text); font-size: 0.9em; }
+
+        /* Student Dashboard View */
+        .dashboard-header { background: var(--light-bg); padding: 1.5em; border-radius: 8px; margin-bottom: 2em; display: flex; justify-content: space-between; align-items: center; }
+        .dashboard-header h2 { margin: 0; }
+        .dashboard-tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
+        .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--light-text); font-weight: 500; }
+        .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Stat Card for Attendance */
+        .stat-card { background: white; border-radius: 8px; padding: 1.5em; text-align: center; border: 1px solid #eee; }
+        .stat-card .stat-value { font-size: 3.5em; font-weight: 700; color: var(--primary-color); line-height: 1; }
+        .stat-card .stat-label { font-weight: 500; color: var(--light-text); margin-top: 0.5em; }
+        .stat-card .stat-subtext { font-size: 0.9em; color: var(--light-text); }
+
+        /* Marks Table */
         .marks-table { width: 100%; border-collapse: collapse; margin-top: 1em; }
         .marks-table th, .marks-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         .marks-table th { background-color: var(--light-bg); }
+        .marks-table tr:hover { background-color: #f9f9f9; }
+        .marks-pass { color: var(--success-color); font-weight: bold; }
+        .marks-fail { color: var(--danger-color); font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container" style="display: none;">
         <div id="app-header" class="header">
-            <div class="header-info"><h1 id="header-title">Student Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <div class="header-info"><h1>Student Portal</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
             <div class="header-actions">
-                <button id="switch-student-btn" class="btn btn-switch" style="display: none;">Switch Student</button>
                 <button id="logout-btn" class="btn btn-logout">Logout</button>
             </div>
         </div>
 
-        <!-- View 1: Profile Selector (Shown if multiple profiles are linked to one email) -->
+        <!-- View 1: Profile Selector -->
         <div id="profile-selector-view" style="display: none;">
             <h2>Select a Student Profile</h2>
             <p>This account is linked to multiple students. Please choose a profile to view.</p>
-            <div id="profile-list" class="dashboard-grid"></div>
+            <div id="profile-list" class="profile-list"></div>
         </div>
 
-        <!-- View 2: Main Student Dashboard (Shown after a profile is selected) -->
+        <!-- View 2: Main Student Dashboard -->
         <div id="student-dashboard-view" style="display: none;">
-            <div id="student-details-content"></div>
-            <div class="dashboard-grid">
-                <div id="attendance-section">
-                    <h3>My Attendance</h3>
-                    <div id="attendance-summary-container"></div>
-                </div>
-                <div id="marks-section">
-                    <h3>My Exam Results</h3>
-                    <div id="exam-marks-container"></div>
-                </div>
+            <div id="dashboard-header" class="dashboard-header"></div>
+            <div class="dashboard-tabs">
+                <button class="tab-button active" onclick="showDashboardTab('attendance')">Attendance Report</button>
+                <button class="tab-button" onclick="showDashboardTab('exams')">Exam Results</button>
+            </div>
+            
+            <div id="attendance-content" class="tab-content active">
+                <div id="attendance-summary-container" class="stat-card"></div>
+            </div>
+            
+            <div id="exam-results-content" class="tab-content">
+                <div id="exam-marks-container"></div>
             </div>
         </div>
     </div>
@@ -97,11 +115,10 @@
         const mainContainer = document.querySelector('.container');
         const userEmailEl = document.getElementById('user-email');
         const logoutBtn = document.getElementById('logout-btn');
-        const switchStudentBtn = document.getElementById('switch-student-btn');
         const profileSelectorView = document.getElementById('profile-selector-view');
         const profileList = document.getElementById('profile-list');
         const studentDashboardView = document.getElementById('student-dashboard-view');
-        const studentDetailsContent = document.getElementById('student-details-content');
+        const dashboardHeader = document.getElementById('dashboard-header');
         const attendanceSummaryContainer = document.getElementById('attendance-summary-container');
         const examMarksContainer = document.getElementById('exam-marks-container');
 
@@ -122,59 +139,41 @@
                 } else {
                     handleAuthError('Access Denied. You do not have student permissions.');
                 }
-            } else {
-                window.location.href = 'index.html';
-            }
+            } else { window.location.href = 'index.html'; }
         });
 
         function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
         logoutBtn.onclick = () => { if (attendanceUnsubscribe) attendanceUnsubscribe(); auth.signOut(); };
-        switchStudentBtn.onclick = () => showProfileSelector();
         
         async function fetchGlobalSettings() {
-            try {
-                const settingsRef = db.collection('settings').doc('global');
-                const doc = await settingsRef.get();
-                if (doc.exists) CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
-            } catch(e) { console.error("Could not fetch academic year settings."); CURRENT_ACADEMIC_YEAR = null; }
+            try { const doc = await db.collection('settings').doc('global').get(); if (doc.exists) CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear; } 
+            catch(e) { console.error("Could not fetch academic year settings."); CURRENT_ACADEMIC_YEAR = null; }
         }
 
         async function initializeStudentDashboard(email) {
-            // Fetch ALL student profiles associated with this email
             const studentSnap = await db.collection('students').where('email', '==', email).get();
-            
-            if (studentSnap.empty) {
-                studentDashboardView.innerHTML = '<h2>Error: Your student profile could not be found. Please contact an administrator.</h2>';
-                studentDashboardView.style.display = 'block';
-                return;
-            }
-
+            if (studentSnap.empty) { studentDashboardView.innerHTML = '<h2>Error: Your student profile could not be found. Please contact an administrator.</h2>'; studentDashboardView.style.display = 'block'; return; }
             linkedStudentProfiles = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-            if (linkedStudentProfiles.length > 1) {
-                // If more than one profile, show the selector screen
-                showProfileSelector();
-            } else {
-                // If only one, load the dashboard directly
-                loadDashboardForStudent(linkedStudentProfiles[0]);
-            }
+            if (linkedStudentProfiles.length > 1) { showProfileSelector(); } 
+            else { loadDashboardForStudent(linkedStudentProfiles[0]); }
         }
 
         // --- UI VIEW MANAGEMENT ---
         function showProfileSelector() {
             studentDashboardView.style.display = 'none';
             profileSelectorView.style.display = 'block';
-            if(linkedStudentProfiles.length > 1) switchStudentBtn.style.display = 'inline-block';
-
             profileList.innerHTML = linkedStudentProfiles.map(profile => `
-                <div class="profile-card" data-id="${profile.id}">
-                    <h2>${profile.name}</h2>
-                    <p><strong>Class:</strong> ${profile.class} | <strong>Roll No:</strong> ${profile.rollNo}</p>
-                </div>
-            `).join('');
+                <div class="profile-selector-card" data-id="${profile.id}">
+                    <div class="icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </div>
+                    <div>
+                        <h3>${profile.name}</h3>
+                        <p>Class: ${profile.class} | Roll No: ${profile.rollNo}</p>
+                    </div>
+                </div>`).join('');
             
-            // Add event listeners to the newly created profile cards
-            document.querySelectorAll('.profile-card').forEach(card => {
+            document.querySelectorAll('.profile-selector-card').forEach(card => {
                 card.onclick = () => {
                     const selectedProfile = linkedStudentProfiles.find(p => p.id === card.dataset.id);
                     loadDashboardForStudent(selectedProfile);
@@ -186,106 +185,86 @@
             profileSelectorView.style.display = 'none';
             studentDashboardView.style.display = 'block';
             
-            // Render basic details
-            studentDetailsContent.innerHTML = `
-                <h2>Welcome, ${profile.name}!</h2>
-                <div class="student-item" style="text-align:left; display:block;">
-                    <p><strong>Roll No:</strong> ${profile.rollNo}</p>
-                    <p><strong>Class:</strong> ${profile.class}</p>
-                    <p><strong>Academic Year:</strong> ${profile.academicYear || 'N/A'}</p>
-                </div>`;
+            dashboardHeader.innerHTML = `
+                <div>
+                    <h2>${profile.name}</h2>
+                    <p style="margin:0; color: var(--light-text);">Class: ${profile.class} | Roll No: ${profile.rollNo} | Year: ${profile.academicYear || 'N/A'}</p>
+                </div>
+                ${linkedStudentProfiles.length > 1 ? `<button class="btn btn-switch" onclick="showProfileSelector()">Switch Student</button>` : ''}
+            `;
             
-            // Fetch and render data specific to this student
+            // Set default tab and load data
+            showDashboardTab('attendance');
             listenForStudentAttendance(profile.id, profile.academicYear);
             fetchExamMarks(profile.id, profile.academicYear);
         }
 
-        // --- DATA FETCHING FOR DASHBOARD ---
+        function showDashboardTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[onclick="showDashboardTab('${tabName}')"]`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`${tabName === 'exams' ? 'exam-results' : tabName}-content`).classList.add('active');
+        }
+
+        // --- DATA FETCHING & RENDERING FOR DASHBOARD ---
         function listenForStudentAttendance(studentId, academicYear) {
             if (attendanceUnsubscribe) attendanceUnsubscribe();
-            
             let query = db.collection('attendance');
             if (academicYear) query = query.where('academicYear', '==', academicYear);
 
             attendanceUnsubscribe = query.onSnapshot(snap => {
-                const myRecords = [];
-                snap.forEach(doc => {
-                    const data = doc.data();
-                    if(data.records && data.records[studentId]) {
-                        myRecords.push({ date: data.date, status: data.records[studentId] });
-                    }
-                });
-                renderAttendanceSummary(myRecords);
+                const myRecords = snap.docs.filter(doc => doc.data().records && doc.data().records[studentId]);
+                renderAttendanceSummary(myRecords.length, myRecords.filter(d => d.data().records[studentId] === 'present').length);
             });
         }
 
-        async function fetchExamMarks(studentId, academicYear) {
-            examMarksContainer.innerHTML = '<p>Loading exam results...</p>';
-            
-            // 1. Get all exams for the student's academic year (or global if not set)
-            let examsQuery = db.collection('exams');
-            const studentYear = academicYear || CURRENT_ACADEMIC_YEAR;
-            if(studentYear) examsQuery = examsQuery.where('academicYear', '==', studentYear);
-            
-            const examsSnap = await examsQuery.get();
-            if(examsSnap.empty) {
-                examMarksContainer.innerHTML = '<p>No exams have been scheduled for this academic year.</p>';
-                return;
-            }
-
-            const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            const examIds = exams.map(e => e.id);
-
-            // 2. Find any marks documents for this student for those exams
-            const marksSnap = await db.collection('marks').where('studentId', '==', studentId).where('examId', 'in', examIds).get();
-            
-            if (marksSnap.empty) {
-                examMarksContainer.innerHTML = '<p>No marks have been entered for you yet.</p>';
-                return;
-            }
-
-            // 3. Process and render the marks
-            let tableHtml = '<table class="marks-table"><thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Max Marks</th></tr></thead><tbody>';
-            let marksFound = false;
-
-            marksSnap.forEach(doc => {
-                const markData = doc.data();
-                const exam = exams.find(e => e.id === markData.examId);
-                
-                for (const subject in markData.marks) {
-                    marksFound = true;
-                    const marksKey = `CLASS_${markData.class}_${subject.replace(/\s+/g, '_').toUpperCase()}`;
-                    const maxMarks = exam.marksStructure[marksKey] || '-';
-                    tableHtml += `<tr>
-                                    <td>${markData.examName}</td>
-                                    <td>${subject}</td>
-                                    <td>${markData.marks[subject]}</td>
-                                    <td>${maxMarks}</td>
-                                  </tr>`;
-                }
-            });
-
-            tableHtml += '</tbody></table>';
-            
-            if (marksFound) {
-                examMarksContainer.innerHTML = tableHtml;
-            } else {
-                 examMarksContainer.innerHTML = '<p>No marks have been entered for you yet.</p>';
-            }
-        }
-
-        function renderAttendanceSummary(records) {
-            const total = records.length;
+        function renderAttendanceSummary(total, present) {
             if (total === 0) {
                 attendanceSummaryContainer.innerHTML = '<p>No attendance records found yet.</p>';
                 return;
             }
-            const present = records.filter(r => r.status === 'present').length;
             const percentage = Math.round((present / total) * 100);
-            attendanceSummaryContainer.innerHTML = `<div class="attendance-summary">
-                    <h4>Overall Attendance: ${present} / ${total} Days</h4>
-                    <div class="percentage-bar"><div class="percentage-fill" style="width: ${percentage}%;">${percentage}%</div></div>
-                </div>`;
+            attendanceSummaryContainer.innerHTML = `
+                <div class="stat-value">${percentage}%</div>
+                <div class="stat-label">Overall Attendance</div>
+                <p class="stat-subtext">${present} of ${total} days attended</p>`;
+        }
+
+        async function fetchExamMarks(studentId, academicYear) {
+            examMarksContainer.innerHTML = '<p>Loading exam results...</p>';
+            const studentYear = academicYear || CURRENT_ACADEMIC_YEAR;
+            if(!studentYear) { examMarksContainer.innerHTML = '<p>Academic year not set. Cannot fetch exams.</p>'; return; }
+
+            const examsSnap = await db.collection('exams').where('academicYear', '==', studentYear).get();
+            if (examsSnap.empty) { examMarksContainer.innerHTML = '<p>No exams scheduled for this year.</p>'; return; }
+
+            const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const examIds = exams.map(e => e.id);
+
+            const marksSnap = await db.collection('marks').where('studentId', '==', studentId).where('examId', 'in', examIds).get();
+            if (marksSnap.empty) { examMarksContainer.innerHTML = '<p>No marks have been entered yet.</p>'; return; }
+
+            let tableHtml = '<table class="marks-table"><thead><tr><th>Exam</th><th>Subject</th><th>Marks Obtained</th><th>Max Marks</th></tr></thead><tbody>';
+            marksSnap.forEach(doc => {
+                const markData = doc.data();
+                const exam = exams.find(e => e.id === markData.examId);
+                for (const subject in markData.marks) {
+                    const marksKey = `CLASS_${markData.class}_${subject.replace(/\s+/g, '_').toUpperCase()}`;
+                    const maxMarks = exam.marksStructure[marksKey] || 0;
+                    const obtainedMarks = markData.marks[subject];
+                    const passMark = maxMarks * 0.4; // Assuming 40% is passing
+                    const statusClass = obtainedMarks >= passMark ? 'marks-pass' : 'marks-fail';
+
+                    tableHtml += `<tr>
+                                    <td>${markData.examName}</td>
+                                    <td>${subject}</td>
+                                    <td class="${statusClass}">${obtainedMarks}</td>
+                                    <td>${maxMarks}</td>
+                                  </tr>`;
+                }
+            });
+            tableHtml += '</tbody></table>';
+            examMarksContainer.innerHTML = tableHtml;
         }
     </script>
 </body>

@@ -102,7 +102,7 @@
 
         // Global State
         let CURRENT_ACADEMIC_YEAR = null;
-        let currentTeacher = null, examsCache = [], mySubjectsCache = [];
+        let currentTeacher = null, examsCache = null, mySubjectsCache = null;
 
         // DOM Elements
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
@@ -150,15 +150,13 @@
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
 
-        // --- UI Control ---
+        // UI Control
         function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
         
         // --- DATA LOADING & RENDERING ---
         function listenForData() {
-            // ** FIXED DATA FLOW **
-            // Use two separate listeners. When both have data, render the task list.
             db.collection('subjects').where('teacherId', '==', currentTeacher.id).onSnapshot(snap => {
                 mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => !s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR);
                 populateClassDropdowns();
@@ -239,9 +237,7 @@
         // --- MARKS ENTRY HELPER FUNCTIONS (FIXED & FUNCTIONAL) ---
         function handleTaskListClick(event) { const target = event.target; if (target.classList.contains('enter-marks-btn')) { const { examId, className, subjectName } = target.dataset; loadMarksEntrySheet(examId, className, subjectName); } }
         function renderMarksEntryTaskList() {
-             // ** THE FIX **: Only render if BOTH caches have been populated.
-            if (!examsCache || !mySubjectsCache) return;
-
+            if (examsCache === null || mySubjectsCache === null) return; // The Fix: Don't render until both datasets are ready
             if (examsCache.length === 0 || mySubjectsCache.length === 0) { marksTaskListContainer.innerHTML = '<h2>Pending Mark Entry</h2><p>No mark entry tasks available.</p>'; marksTabBtn.style.display = 'none'; return; }
             marksTabBtn.style.display = 'inline-block'; let html = '<h2>Pending Mark Entry</h2>'; let taskCount = 0;
             examsCache.forEach(exam => { let examHtml = ''; mySubjectsCache.forEach(subject => { const marksKey = `CLASS_${subject.className}_${subject.subjectName.replace(/\s+/g, '_').toUpperCase()}`; if (exam.marksStructure[marksKey]) { taskCount++; examHtml += `<div class="mark-entry-task"><span><strong>Class ${subject.className}</strong> - ${subject.subjectName}</span><button class="btn btn-sm btn-edit enter-marks-btn" data-exam-id="${exam.id}" data-class-name="${subject.className}" data-subject-name="${subject.subjectName}">Enter Marks</button></div>`; } }); if (examHtml) { html += `<div class="exam-group"><h3>${exam.examName}</h3>${examHtml}</div>`; } });

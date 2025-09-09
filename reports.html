@@ -55,10 +55,12 @@
             <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
         <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
+
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('attendance')">Attendance Reports</button>
             <button class="tab-button" onclick="showTab('marks')">Mark Sheets</button>
         </div>
+
         <div id="attendance-content" class="content active">
             <div class="report-controls">
                 <select id="att-class-select"><option value="">-- Select Class --</option></select>
@@ -67,6 +69,7 @@
             </div>
             <div id="attendance-report-container"></div>
         </div>
+
         <div id="marks-content" class="content">
             <div class="report-controls">
                 <select id="marks-class-select"><option value="">-- Select Class --</option></select>
@@ -80,6 +83,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
@@ -95,7 +99,9 @@
         const adminEmail = "harshavardhanjw@gmail.com";
 
         // Global State
-        let CURRENT_ACADEMIC_YEAR = null, currentUser = null, studentsCache = [], examsCache = [];
+        let CURRENT_ACADEMIC_YEAR = null;
+        let currentUser = null;
+        let studentsCache = [], examsCache = [];
 
         // DOM Elements
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
@@ -157,9 +163,8 @@
                 const teacherSnap = await db.collection('teachers').where('email', '==', currentUser.email).limit(1).get();
                 if (!teacherSnap.empty) {
                     const teacherId = teacherSnap.docs[0].id;
-                    const teacherSubjectsSnap = await db.collection('subjects').where('teacherId', '==', teacherId).get();
-                    const teacherSubjects = teacherSubjectsSnap.docs.map(doc => doc.data()).filter(s => !s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR);
-                    availableClasses = [...new Set(teacherSubjects.map(doc => doc.className))].sort((a,b) => a-b);
+                    const teacherSubjectsSnap = await db.collection('subjects').where('teacherId', '==', teacherId).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).get();
+                    availableClasses = [...new Set(teacherSubjectsSnap.docs.map(doc => doc.data().className))].sort((a,b) => Number(a)-Number(b));
                 }
             }
             const classOptions = availableClasses.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -173,7 +178,22 @@
         }
 
         // --- ATTENDANCE REPORT LOGIC ---
-        async function generateAttendanceReport() { /* ... Unchanged ... */ }
+        async function generateAttendanceReport() {
+            const selectedClass = attClassSelect.value;
+            const selectedMonth = attMonthSelect.value;
+            if (!selectedClass || !selectedMonth) { alert('Please select a class and a month.'); return; }
+            attendanceReportContainer.innerHTML = `<div class="status-message">Generating attendance report...</div>`;
+            const [year, month] = selectedMonth.split('-').map(Number);
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+            const studentsInClass = studentsCache.filter(s => s.class == selectedClass).sort((a,b) => a.rollNo.localeCompare(b.rollNo, undefined, {numeric: true}));
+            const attendanceSnap = await db.collection('attendance').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).where('date', '>=', startDate).where('date', '<=', endDate).get();
+            let reportData = studentsInClass.map(student => { let present = 0, total = 0; let absentDates = []; attendanceSnap.forEach(doc => { if (doc.data().records && doc.data().records[student.id]) { total++; if (doc.data().records[student.id] === 'present') present++; else absentDates.push(new Date(doc.data().date).getDate()); } }); return { name: student.name, rollNo: student.rollNo, present, total, absentDates }; });
+            let reportHtml = `<div class="report-container"><div class="report-header"><h3>Attendance for Class ${selectedClass} - ${new Date(selectedMonth+'-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('att-report-table', 'attendance.csv')">Export</button></div></div><table class="report-table" id="att-report-table"><thead><tr><th>Roll No</th><th>Name</th><th>Percentage</th><th>Present/Total</th><th>Absent Dates</th></tr></thead><tbody>`;
+            reportData.forEach(data => { const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 'N/A'; reportHtml += `<tr><td>${data.rollNo}</td><td>${data.name}</td><td>${percentage}%</td><td>${data.present} / ${data.total}</td><td>${data.absentDates.join(', ')}</td></tr>`; });
+            reportHtml += `</tbody></table></div>`;
+            attendanceReportContainer.innerHTML = reportHtml;
+        }
 
         // --- MARK SHEET LOGIC (DEFINITIVELY FIXED) ---
         async function generateMarksReport() {
@@ -181,26 +201,19 @@
             const selectedExamId = marksExamSelect.value;
             if (!selectedClass || !selectedExamId) { alert('Please select a class and an exam.'); return; }
             marksReportContainer.innerHTML = `<div class="status-message">Generating mark sheet...</div>`;
-
             const selectedExam = examsCache.find(e => e.id === selectedExamId);
             const studentsInClass = studentsCache.filter(s => s.class == selectedClass).sort((a,b) => a.rollNo.localeCompare(b.rollNo, undefined, {numeric: true}));
-            
-            if (studentsInClass.length === 0) {
-                marksReportContainer.innerHTML = '<p>No active students found in this class to generate a report.</p>';
-                return;
-            }
-
+            if (studentsInClass.length === 0) { marksReportContainer.innerHTML = '<p>No active students found in this class to generate a report.</p>'; return; }
             const relevantSubjects = Object.keys(selectedExam.marksStructure).filter(key => key.startsWith(`CLASS_${selectedClass}_`)).map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
             
             // ** THE DEFINITIVE FIX **
-            // Fetch all marks for the entire exam, then filter by class in the code.
-            // This is robust against data type mismatches (class: 5 vs "5") and avoids query limits.
+            // Fetch all marks for the exam first. This is robust and scalable.
             const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).get();
             const marksMap = new Map();
             marksSnap.forEach(doc => {
                 const markData = doc.data();
-                // We ensure the class matches (handling number vs string) AND the academic year is correct.
-                if (markData.class == selectedClass && (!markData.academicYear || markData.academicYear === CURRENT_ACADEMIC_YEAR)) {
+                // This check handles potential data type mismatches (e.g., class: 5 vs "5")
+                if (markData.class == selectedClass) {
                     marksMap.set(markData.studentId, markData.marks);
                 }
             });
@@ -226,7 +239,21 @@
 
         // --- UTILITY FUNCTIONS ---
         function printReport() { window.print(); }
-        function exportToCSV(tableId, filename) { /* ... Unchanged ... */ }
+        function exportToCSV(tableId, filename) {
+            const table = document.getElementById(tableId); if (!table) return;
+            let csv = []; const rows = table.querySelectorAll("tr");
+            for (const row of rows) {
+                const cols = row.querySelectorAll("td, th"); const rowData = [];
+                for (const col of cols) { let data = col.innerText.replace(/"/g, '""'); if (data.includes(',')) data = `"${data}"`; rowData.push(data); }
+                csv.push(rowData.join(","));
+            }
+            const downloadLink = document.createElement("a");
+            downloadLink.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv.join("\n"));
+            downloadLink.download = filename;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
     </script>
 </body>
 </html>

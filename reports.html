@@ -189,7 +189,10 @@
             const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
             const endDate = new Date(year, month, 0).toISOString().split('T')[0];
             const studentsInClass = studentsCache.filter(s => s.class == selectedClass).sort((a,b) => a.rollNo.localeCompare(b.rollNo, undefined, {numeric: true}));
-            const attendanceSnap = await db.collection('attendance').where('class', '==', selectedClass).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).where('date', '>=', startDate).where('date', '<=', endDate).get();
+            const studentIds = studentsInClass.map(s => s.id);
+            if(studentIds.length === 0) { attendanceReportContainer.innerHTML = "<p>No students found for this class.</p>"; return; }
+            
+            const attendanceSnap = await db.collection('attendance').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).where('date', '>=', startDate).where('date', '<=', endDate).get();
             let reportData = studentsInClass.map(student => { let present = 0, total = 0; let absentDates = []; attendanceSnap.forEach(doc => { if (doc.data().records && doc.data().records[student.id]) { total++; if (doc.data().records[student.id] === 'present') present++; else absentDates.push(new Date(doc.data().date).getDate()); } }); return { name: student.name, rollNo: student.rollNo, present, total, absentDates }; });
             let reportHtml = `<div class="report-container"><div class="report-header"><h3>Attendance for Class ${selectedClass} - ${new Date(selectedMonth+'-02').toLocaleString('default', { month: 'long', year: 'numeric' })}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('att-report-table', 'attendance.csv')">Export</button></div></div><table class="report-table" id="att-report-table"><thead><tr><th>Roll No</th><th>Name</th><th>Percentage</th><th>Present/Total</th><th>Absent Dates</th></tr></thead><tbody>`;
             reportData.forEach(data => { const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 'N/A'; reportHtml += `<tr><td>${data.rollNo}</td><td>${data.name}</td><td>${percentage}%</td><td>${data.present} / ${data.total}</td><td>${data.absentDates.join(', ')}</td></tr>`; });
@@ -216,10 +219,16 @@
                 .filter(key => key.startsWith(`CLASS_${selectedClass}_`))
                 .map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
             
-            // ** THE FIX **: Fetch all marks for the exam and filter by class. This is robust and avoids the `in` query limit.
-            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).where('class', '==', selectedClass).get();
+            // ** THE FIX **: This is the new, robust way to fetch marks.
+            // It gets all marks for the exam first, then maps them. No `in` query limit.
+            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).get();
             const marksMap = new Map();
-            marksSnap.forEach(doc => marksMap.set(doc.data().studentId, doc.data().marks));
+            marksSnap.forEach(doc => {
+                // Ensure the mark belongs to the current academic year if the field exists
+                if (!doc.data().academicYear || doc.data().academicYear === CURRENT_ACADEMIC_YEAR) {
+                    marksMap.set(doc.data().studentId, doc.data().marks);
+                }
+            });
 
             let reportHtml = `<div class="report-container"><div class="report-header"><h3>Mark Sheet: ${selectedExam.examName} - Class ${selectedClass}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('marks-report-table', 'marksheet.csv')">Export</button></div></div><table class="report-table" id="marks-report-table"><thead><tr><th>Roll No</th><th>Name</th>`;
             relevantSubjects.forEach(sub => {

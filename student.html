@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Dashboard - College Management System</title>
     <style>
-        /* --- All CSS is included here --- */
         :root {
             --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --warning-color: #f39c12;
             --light-bg: #f4f7f9; --dark-text: #2c3e50; --light-text: #7f8c8d;
@@ -21,64 +20,67 @@
         }
         h1, h2, h3 { color: var(--dark-text); }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
-        .header-info p { margin: 0; font-size: 0.9em; color: var(--light-text); }
+        .header-actions { display: flex; gap: 1em; }
         .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
         .btn:hover { opacity: 0.9; }
         .btn-logout { background-color: var(--danger-color); }
-        .btn-edit { background-color: var(--primary-color); }
+        .btn-switch { background-color: var(--warning-color); }
         
         .student-item { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); }
-
-        /* Attendance Styles */
-        #student-attendance-content { margin-top: 2em; text-align: center; }
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2em; margin-top: 2em; }
+        
+        /* Profile Selector Styles */
+        #profile-selector-view { text-align: center; }
+        .profile-card { display: block; background: #fff; border: 1px solid #ddd; padding: 1.5em; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; text-align: left; }
+        .profile-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        /* Attendance & Marks Styles */
         .attendance-summary { background: var(--light-bg); padding: 1em; border-radius: 8px; margin-top: 1em; }
         .percentage-bar { background: #e0e0e0; border-radius: 5px; overflow: hidden; height: 25px; margin-top: 0.5em; }
         .percentage-fill { background: var(--success-color); height: 100%; text-align: center; color: white; line-height: 25px; transition: width 0.5s; font-weight: bold; }
-        .calendar { width: 100%; border-collapse: collapse; margin-top: 1em; }
-        .calendar th, .calendar td { border: 1px solid #ddd; padding: 12px 8px; text-align: center; }
-        .calendar th { background-color: var(--light-bg); font-weight: 600; }
-        .calendar .day { cursor: default; }
-        .calendar .today { background-color: var(--warning-color); color: white; font-weight: bold; }
-        .calendar .present { background-color: #d4edda; color: #155724; font-weight: bold; }
-        .calendar .absent { background-color: #f8d7da; color: #721c24; font-weight: bold; }
-        .calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em; padding: 0 1em; }
+        .marks-table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        .marks-table th, .marks-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .marks-table th { background-color: var(--light-bg); }
     </style>
 </head>
 <body>
-    <div class="container" style="display: none;"> <!-- Hide container until user is verified -->
-        <!-- Header for logged-in users -->
+    <div class="container" style="display: none;">
         <div id="app-header" class="header">
-            <div class="header-info">
-                <h1 id="header-title">Student Dashboard</h1>
-                <p>Logged in as: <strong id="user-email"></strong></p>
+            <div class="header-info"><h1 id="header-title">Student Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <div class="header-actions">
+                <button id="switch-student-btn" class="btn btn-switch" style="display: none;">Switch Student</button>
+                <button id="logout-btn" class="btn btn-logout">Logout</button>
             </div>
-            <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
 
-        <!-- Student Dashboard View -->
-        <div id="student-view" class="student-details">
-            <div id="student-details-content">
-                <!-- Student profile info will be loaded here by JS -->
-            </div>
-            <div id="student-attendance-content">
-                <h3>My Attendance</h3>
-                <div id="attendance-summary-container">
-                    <!-- Attendance summary bar will be loaded here -->
+        <!-- View 1: Profile Selector (Shown if multiple profiles are linked to one email) -->
+        <div id="profile-selector-view" style="display: none;">
+            <h2>Select a Student Profile</h2>
+            <p>This account is linked to multiple students. Please choose a profile to view.</p>
+            <div id="profile-list" class="dashboard-grid"></div>
+        </div>
+
+        <!-- View 2: Main Student Dashboard (Shown after a profile is selected) -->
+        <div id="student-dashboard-view" style="display: none;">
+            <div id="student-details-content"></div>
+            <div class="dashboard-grid">
+                <div id="attendance-section">
+                    <h3>My Attendance</h3>
+                    <div id="attendance-summary-container"></div>
                 </div>
-                <div id="attendance-calendar-container" style="margin-top: 2em;">
-                    <!-- The calendar will be loaded here -->
+                <div id="marks-section">
+                    <h3>My Exam Results</h3>
+                    <div id="exam-marks-container"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
             authDomain: "collage-management-696b3.firebaseapp.com",
@@ -91,74 +93,121 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        // --- DOM Elements ---
+        // DOM Elements
         const mainContainer = document.querySelector('.container');
-        const logoutBtn = document.getElementById('logout-btn');
         const userEmailEl = document.getElementById('user-email');
+        const logoutBtn = document.getElementById('logout-btn');
+        const switchStudentBtn = document.getElementById('switch-student-btn');
+        const profileSelectorView = document.getElementById('profile-selector-view');
+        const profileList = document.getElementById('profile-list');
+        const studentDashboardView = document.getElementById('student-dashboard-view');
         const studentDetailsContent = document.getElementById('student-details-content');
         const attendanceSummaryContainer = document.getElementById('attendance-summary-container');
-        const attendanceCalendarContainer = document.getElementById('attendance-calendar-container');
+        const examMarksContainer = document.getElementById('exam-marks-container');
 
-        // --- Global State ---
-        let studentProfile = null; // To store the student's document ID and data
-        let attendanceUnsubscribe = null; // To stop the real-time listener on logout
-        let calendarDate = new Date(); // To keep track of the currently displayed month
+        // Global State
+        let linkedStudentProfiles = [];
+        let CURRENT_ACADEMIC_YEAR = null;
+        let attendanceUnsubscribe = null;
 
-        // --- Authentication & Page Protection ---
+        // --- AUTH & INITIALIZATION ---
         auth.onAuthStateChanged(async user => {
             if (user) {
-                // User is logged in, verify their role
                 const userDoc = await db.collection('users').doc(user.email).get();
                 if (userDoc.exists && userDoc.data().role === 'student') {
-                    // User is a verified student, show the page
+                    await fetchGlobalSettings();
                     mainContainer.style.display = 'block';
                     userEmailEl.textContent = user.email;
                     initializeStudentDashboard(user.email);
                 } else {
-                    // User is not a student, log out and redirect
-                    alert('Access Denied. You do not have student permissions.');
-                    auth.signOut().then(() => window.location.href = 'index.html');
+                    handleAuthError('Access Denied. You do not have student permissions.');
                 }
             } else {
-                // No user logged in, redirect to login page
                 window.location.href = 'index.html';
             }
         });
 
-        logoutBtn.onclick = () => {
-            if (attendanceUnsubscribe) attendanceUnsubscribe(); // Stop listener
-            auth.signOut().then(() => {
-                window.location.href = 'index.html';
-            });
-        };
-
-        // --- Dashboard Initialization ---
-        async function initializeStudentDashboard(email) {
-            // Fetch student profile based on their email
-            const studentSnap = await db.collection('students').where('email', '==', email).limit(1).get();
-            if (studentSnap.empty) {
-                studentDetailsContent.innerHTML = '<h2>Error: Your student profile could not be found. Please contact an administrator.</h2>';
-                return;
-            }
-            const studentDoc = studentSnap.docs[0];
-            studentProfile = { id: studentDoc.id, ...studentDoc.data() };
-            
-            // Render student profile details
-            studentDetailsContent.innerHTML = `<h2>Welcome, ${studentProfile.name}!</h2>
-                <div class="student-item" style="text-align:left; display:block;">
-                    <p><strong>Roll No:</strong> ${studentProfile.rollNo}</p>
-                    <p><strong>Class:</strong> ${studentProfile.class}</p>
-                </div>`;
-            
-            // Start listening for attendance records
-            listenForStudentAttendance(studentProfile.id);
+        function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
+        logoutBtn.onclick = () => { if (attendanceUnsubscribe) attendanceUnsubscribe(); auth.signOut(); };
+        switchStudentBtn.onclick = () => showProfileSelector();
+        
+        async function fetchGlobalSettings() {
+            try {
+                const settingsRef = db.collection('settings').doc('global');
+                const doc = await settingsRef.get();
+                if (doc.exists) CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            } catch(e) { console.error("Could not fetch academic year settings."); CURRENT_ACADEMIC_YEAR = null; }
         }
 
-        // --- Student: Attendance Functions ---
-        function listenForStudentAttendance(studentId) {
-            if (attendanceUnsubscribe) attendanceUnsubscribe(); // Unsubscribe from previous listener if any
+        async function initializeStudentDashboard(email) {
+            // Fetch ALL student profiles associated with this email
+            const studentSnap = await db.collection('students').where('email', '==', email).get();
+            
+            if (studentSnap.empty) {
+                studentDashboardView.innerHTML = '<h2>Error: Your student profile could not be found. Please contact an administrator.</h2>';
+                studentDashboardView.style.display = 'block';
+                return;
+            }
 
-            attendanceUnsubscribe = db.collection('attendance').onSnapshot(snap => {
+            linkedStudentProfiles = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            if (linkedStudentProfiles.length > 1) {
+                // If more than one profile, show the selector screen
+                showProfileSelector();
+            } else {
+                // If only one, load the dashboard directly
+                loadDashboardForStudent(linkedStudentProfiles[0]);
+            }
+        }
+
+        // --- UI VIEW MANAGEMENT ---
+        function showProfileSelector() {
+            studentDashboardView.style.display = 'none';
+            profileSelectorView.style.display = 'block';
+            if(linkedStudentProfiles.length > 1) switchStudentBtn.style.display = 'inline-block';
+
+            profileList.innerHTML = linkedStudentProfiles.map(profile => `
+                <div class="profile-card" data-id="${profile.id}">
+                    <h2>${profile.name}</h2>
+                    <p><strong>Class:</strong> ${profile.class} | <strong>Roll No:</strong> ${profile.rollNo}</p>
+                </div>
+            `).join('');
+            
+            // Add event listeners to the newly created profile cards
+            document.querySelectorAll('.profile-card').forEach(card => {
+                card.onclick = () => {
+                    const selectedProfile = linkedStudentProfiles.find(p => p.id === card.dataset.id);
+                    loadDashboardForStudent(selectedProfile);
+                };
+            });
+        }
+
+        function loadDashboardForStudent(profile) {
+            profileSelectorView.style.display = 'none';
+            studentDashboardView.style.display = 'block';
+            
+            // Render basic details
+            studentDetailsContent.innerHTML = `
+                <h2>Welcome, ${profile.name}!</h2>
+                <div class="student-item" style="text-align:left; display:block;">
+                    <p><strong>Roll No:</strong> ${profile.rollNo}</p>
+                    <p><strong>Class:</strong> ${profile.class}</p>
+                    <p><strong>Academic Year:</strong> ${profile.academicYear || 'N/A'}</p>
+                </div>`;
+            
+            // Fetch and render data specific to this student
+            listenForStudentAttendance(profile.id, profile.academicYear);
+            fetchExamMarks(profile.id, profile.academicYear);
+        }
+
+        // --- DATA FETCHING FOR DASHBOARD ---
+        function listenForStudentAttendance(studentId, academicYear) {
+            if (attendanceUnsubscribe) attendanceUnsubscribe();
+            
+            let query = db.collection('attendance');
+            if (academicYear) query = query.where('academicYear', '==', academicYear);
+
+            attendanceUnsubscribe = query.onSnapshot(snap => {
                 const myRecords = [];
                 snap.forEach(doc => {
                     const data = doc.data();
@@ -167,8 +216,62 @@
                     }
                 });
                 renderAttendanceSummary(myRecords);
-                renderAttendanceCalendar(myRecords, calendarDate);
             });
+        }
+
+        async function fetchExamMarks(studentId, academicYear) {
+            examMarksContainer.innerHTML = '<p>Loading exam results...</p>';
+            
+            // 1. Get all exams for the student's academic year (or global if not set)
+            let examsQuery = db.collection('exams');
+            const studentYear = academicYear || CURRENT_ACADEMIC_YEAR;
+            if(studentYear) examsQuery = examsQuery.where('academicYear', '==', studentYear);
+            
+            const examsSnap = await examsQuery.get();
+            if(examsSnap.empty) {
+                examMarksContainer.innerHTML = '<p>No exams have been scheduled for this academic year.</p>';
+                return;
+            }
+
+            const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const examIds = exams.map(e => e.id);
+
+            // 2. Find any marks documents for this student for those exams
+            const marksSnap = await db.collection('marks').where('studentId', '==', studentId).where('examId', 'in', examIds).get();
+            
+            if (marksSnap.empty) {
+                examMarksContainer.innerHTML = '<p>No marks have been entered for you yet.</p>';
+                return;
+            }
+
+            // 3. Process and render the marks
+            let tableHtml = '<table class="marks-table"><thead><tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Max Marks</th></tr></thead><tbody>';
+            let marksFound = false;
+
+            marksSnap.forEach(doc => {
+                const markData = doc.data();
+                const exam = exams.find(e => e.id === markData.examId);
+                
+                for (const subject in markData.marks) {
+                    marksFound = true;
+                    const marksKey = `CLASS_${markData.class}_${subject.replace(/\s+/g, '_').toUpperCase()}`;
+                    const maxMarks = exam.marksStructure[marksKey] || '-';
+                    tableHtml += `<tr>
+                                    <td>${markData.examName}</td>
+                                    <td>${subject}</td>
+                                    <td>${markData.marks[subject]}</td>
+                                    <td>${maxMarks}</td>
+                                  </tr>`;
+                }
+            });
+
+            tableHtml += '</tbody></table>';
+            
+            if (marksFound) {
+                examMarksContainer.innerHTML = tableHtml;
+            } else {
+                 examMarksContainer.innerHTML = '<p>No marks have been entered for you yet.</p>';
+            }
         }
 
         function renderAttendanceSummary(records) {
@@ -179,72 +282,10 @@
             }
             const present = records.filter(r => r.status === 'present').length;
             const percentage = Math.round((present / total) * 100);
-            attendanceSummaryContainer.innerHTML = `
-                <div class="attendance-summary">
-                    <h4>Overall: ${present} / ${total} Days Attended</h4>
-                    <div class="percentage-bar">
-                        <div class="percentage-fill" style="width: ${percentage}%;">${percentage}%</div>
-                    </div>
+            attendanceSummaryContainer.innerHTML = `<div class="attendance-summary">
+                    <h4>Overall Attendance: ${present} / ${total} Days</h4>
+                    <div class="percentage-bar"><div class="percentage-fill" style="width: ${percentage}%;">${percentage}%</div></div>
                 </div>`;
-        }
-        
-        function renderAttendanceCalendar(records, dateToDisplay) {
-            const year = dateToDisplay.getFullYear();
-            const month = dateToDisplay.getMonth();
-            const today = new Date();
-            const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            
-            const attendanceMap = new Map(records.map(r => [r.date, r.status]));
-            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0=Sun, 1=Mon...
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const monthName = dateToDisplay.toLocaleString('default', { month: 'long' });
-
-            let html = `<div class="calendar-nav">
-                            <button class="btn btn-edit" onclick="changeMonth(-1)">&lt; Prev</button>
-                            <h4>${monthName} ${year}</h4>
-                            <button class="btn btn-edit" onclick="changeMonth(1)">Next &gt;</button>
-                        </div>
-                        <table class="calendar">
-                            <thead><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
-                            <tbody>`;
-            
-            let date = 1;
-            html += '<tr>';
-            // Add blank cells for the start of the month
-            for (let i = 0; i < firstDayOfMonth; i++) {
-                html += '<td></td>';
-            }
-            // Fill in the days of the month
-            while (date <= daysInMonth) {
-                // If it's a Sunday (and not the first day), start a new row
-                if (new Date(year, month, date).getDay() === 0 && date !== 1) {
-                    html += '</tr><tr>';
-                }
-
-                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-                let className = 'day';
-                if(attendanceMap.has(dateString)) className += ` ${attendanceMap.get(dateString)}`;
-                if(dateString === todayString) className += ' today';
-                
-                html += `<td class="${className}">${date}</td>`;
-                date++;
-            }
-             // Add blank cells for the end of the month
-            while(new Date(year, month, date-1).getDay() !== 6) { // 6 = Saturday
-                html += '<td></td>';
-                date++;
-            }
-            html += '</tr></tbody></table>';
-            attendanceCalendarContainer.innerHTML = html;
-        }
-
-        // Attached to buttons via onclick attribute
-        function changeMonth(delta) {
-            calendarDate.setMonth(calendarDate.getMonth() + delta);
-            // Re-trigger the listener which will re-render the calendar for the new month
-            if (studentProfile) {
-                listenForStudentAttendance(studentProfile.id);
-            }
         }
     </script>
 </body>

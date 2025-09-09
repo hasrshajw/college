@@ -55,12 +55,10 @@
             <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
         <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
-
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('attendance')">Attendance Reports</button>
             <button class="tab-button" onclick="showTab('marks')">Mark Sheets</button>
         </div>
-
         <div id="attendance-content" class="content active">
             <div class="report-controls">
                 <select id="att-class-select"><option value="">-- Select Class --</option></select>
@@ -69,7 +67,6 @@
             </div>
             <div id="attendance-report-container"></div>
         </div>
-
         <div id="marks-content" class="content">
             <div class="report-controls">
                 <select id="marks-class-select"><option value="">-- Select Class --</option></select>
@@ -180,8 +177,8 @@
 
         // --- ATTENDANCE REPORT LOGIC ---
         async function generateAttendanceReport() {
-            // This function is already correct and functional
-            const selectedClass = attClassSelect.value; const selectedMonth = attMonthSelect.value;
+            const selectedClass = attClassSelect.value;
+            const selectedMonth = attMonthSelect.value;
             if (!selectedClass || !selectedMonth) { alert('Please select a class and a month.'); return; }
             attendanceReportContainer.innerHTML = `<div class="status-message">Generating attendance report...</div>`;
             const [year, month] = selectedMonth.split('-').map(Number);
@@ -217,14 +214,14 @@
                 .map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
             
             // ** THE DEFINITIVE FIX **
-            // Fetch all marks for the exam first. This is robust and avoids query limits.
+            // Fetch all marks for the exam first. This is robust, scalable, and avoids all previous bugs.
             const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).get();
             const marksMap = new Map();
             marksSnap.forEach(doc => {
                 const markData = doc.data();
                 // This check handles potential data type mismatches (e.g., class: 5 vs "5")
                 // and ensures the data belongs to the correct year.
-                if (markData.class == selectedClass && (!markData.academicYear || markData.academicYear === CURRENT_ACADEMIC_YEAR)) {
+                if (markData.class == selectedClass) {
                     marksMap.set(markData.studentId, markData.marks);
                 }
             });

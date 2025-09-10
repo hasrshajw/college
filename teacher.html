@@ -43,6 +43,7 @@
         .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
         .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; }
         .modal-section h4 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; margin-top: 0; }
+        
         .timetable { width: 100%; border-collapse: collapse; margin-top: 1em; }
         .timetable th, .timetable td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         .timetable th { background-color: var(--light-bg); }
@@ -108,15 +109,16 @@
 
         // Global State
         let CURRENT_ACADEMIC_YEAR = null;
-        let currentTeacher = null, examsCache = [], mySubjectsCache = [];
+        let currentTeacher = null, examsCache = [], mySubjectsCache = [], timetablesCache = [];
         const timeSlots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-01:00", "02:00-03:00", "03:00-04:00"];
 
         // DOM Elements
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
-        const teacherNameDisplay = document.getElementById('teacher-name-display'), timetableContainer = document.getElementById('timetable-container');
+        const teacherNameDisplay = document.getElementById('teacher-name-display');
         const attClassSelect = document.getElementById('teacher-class-select-att'), attDateEl = document.getElementById('attendance-date'), loadAttBtn = document.getElementById('load-attendance-btn'), attSheetContainer = document.getElementById('attendance-sheet-container');
         const marksTabBtn = document.getElementById('marks-tab-btn'), marksTaskListContainer = document.getElementById('marks-task-list-container'), marksSheetContainer = document.getElementById('marks-sheet-container');
         const studentProfileModal = document.getElementById('student-profile-modal');
+        const timetableContainer = document.getElementById('timetable-container');
         
         // --- AUTH & INITIALIZATION ---
         auth.onAuthStateChanged(async user => {
@@ -164,10 +166,11 @@
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
         
-        // --- DATA LOADING ---
+        // Data Loading
         function listenForData() {
             db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => { examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); });
-            db.collection('subjects').where('teacherId', '==', currentTeacher.id).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); populateClassDropdowns(); fetchTimetable(); });
+            db.collection('subjects').where('teacherId', '==', currentTeacher.id).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); populateClassDropdowns(); renderDailyTimetable(); });
+            db.collection('timetables').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { timetablesCache = snap.docs.map(doc => doc.data()); renderDailyTimetable(); });
         }
         
         function populateClassDropdowns() {
@@ -176,61 +179,64 @@
             uniqueClasses.forEach(c => classOptions += `<option value="${c}">${c}</option>`);
             attClassSelect.innerHTML = classOptions;
         }
-        
-        // --- NEW: TIMETABLE/DASHBOARD LOGIC ---
-        async function fetchTimetable() {
-            timetableContainer.innerHTML = "<p>Loading today's schedule...</p>";
+
+        // --- DASHBOARD WIDGETS ---
+        function renderDailyTimetable() {
+            if (mySubjectsCache.length === 0 || timetablesCache.length === 0) { timetableContainer.innerHTML = "<p>Your daily schedule will appear here once timetables are set by the admin.</p>"; return; }
+            
             const today = new Date().toLocaleString('en-us', {weekday: 'long'}).toLowerCase();
-            const myClasses = [...new Set(mySubjectsCache.map(s => s.className))];
-            if (myClasses.length === 0) { timetableContainer.innerHTML = "<p>You are not assigned to any classes for this academic year.</p>"; return; }
-
-            const timetablePromises = myClasses.map(c => db.collection('timetables').doc(`CLASS_${c}_YEAR_${CURRENT_ACADEMIC_YEAR}`).get());
-            const timetableSnaps = await Promise.all(timetablePromises);
-
-            let todaySchedule = [];
-            timetableSnaps.forEach(doc => {
-                if (doc.exists) {
-                    const timetable = doc.data();
-                    const scheduleForDay = timetable.schedule[today];
-                    if (scheduleForDay) {
-                        scheduleForDay.forEach((subject, periodIndex) => {
-                            // Check if this teacher teaches this subject in this class
-                            const isMySubject = mySubjectsCache.some(s => s.className === timetable.className && s.subjectName === subject);
-                            if (subject && isMySubject) {
-                                todaySchedule.push({ time: timeSlots[periodIndex], subject, className: timetable.className });
-                            }
-                        });
-                    }
+            const myClasses = mySubjectsCache.map(s => s.className);
+            
+            let dailySchedule = [];
+            
+            timetablesCache.filter(tt => myClasses.includes(tt.className)).forEach(timetable => {
+                if (timetable.schedule && timetable.schedule[today]) {
+                    timetable.schedule[today].forEach((subject, periodIndex) => {
+                        // Add to schedule only if the subject is taught by this teacher
+                        if (subject && mySubjectsCache.some(s => s.className === timetable.className && s.subjectName === subject)) {
+                            dailySchedule.push({ time: timeSlots[periodIndex], className: timetable.className, subject });
+                        }
+                    });
                 }
             });
 
-            if (todaySchedule.length === 0) { timetableContainer.innerHTML = "<p>You have no classes scheduled for today.</p>"; return; }
-            
+            if (dailySchedule.length === 0) { timetableContainer.innerHTML = "<p>You have no classes scheduled for today.</p>"; return; }
+
+            dailySchedule.sort((a,b) => a.time.localeCompare(b.time)); // Sort by time slot
             let tableHtml = '<table class="timetable"><thead><tr><th>Time</th><th>Class</th><th>Subject</th></tr></thead><tbody>';
-            todaySchedule.sort((a,b) => a.time.localeCompare(b.time)).forEach(period => {
-                tableHtml += `<tr><td>${period.time}</td><td>${period.className}</td><td>${period.subject}</td></tr>`;
-            });
-            tableHtml += '</tbody></table>';
+            dailySchedule.forEach(period => { tableHtml += `<tr><td>${period.time}</td><td>${period.className}</td><td>${period.subject}</td></tr>`; });
+            tableHtml += `</tbody></table>`;
             timetableContainer.innerHTML = tableHtml;
         }
 
         // --- ATTENDANCE LOGIC ---
-        async function loadAttendanceSheet() { /* ... Unchanged ... */ }
-        async function saveAttendance(docId, aClass, aDate) { /* ... Unchanged ... */ }
+        async function loadAttendanceSheet() {
+            const selectedClass = attClassSelect.value;
+            const selectedDate = attDateEl.value;
+            if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; }
+            attSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`;
+            const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).get();
+            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name));
+            if (students.length === 0) { attSheetContainer.innerHTML = `<p>No active students found in Class ${selectedClass} for the current academic year.</p>`; return; }
+            const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`;
+            const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get();
+            const records = attendanceDoc.exists ? attendanceDoc.data().records : {};
+            let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3>`;
+            students.forEach(s => { const status = records[s.id] || 'present'; sheetHtml += `<div class="sheet-row" data-student-id="${s.id}"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group attendance-radios"><input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status==='present'?'checked':''}> <label for="p_${s.id}">Present</label><input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status==='absent'?'checked':''}> <label for="a_${s.id}">Absent</label></div></div>`; });
+            sheetHtml += `<button id="save-att-btn" class="btn btn-success" style="margin-top:1.5em; margin-left:0;">Save Attendance</button>`;
+            attSheetContainer.innerHTML = sheetHtml;
+            document.getElementById('save-att-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate);
+        }
+        async function saveAttendance(docId, aClass, aDate) {
+            const saveBtn = document.getElementById('save-att-btn');
+            saveBtn.disabled = true;
+            const records = {};
+            document.querySelectorAll('#attendance-sheet-container .sheet-row').forEach(row => { records[row.dataset.studentId] = document.querySelector(`input[name="s_${row.dataset.studentId}"]:checked`).value; });
+            try { await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records, academicYear: CURRENT_ACADEMIC_YEAR }); alert('Attendance saved!'); } 
+            catch(err) { alert(`Error: ${err.message}`); } finally { saveBtn.disabled = false; }
+        }
         
-        // --- MARKS ENTRY LOGIC ---
-        function renderMarksEntryTaskList() { /* ... Unchanged ... */ }
-        function handleTaskListClick(event) { /* ... Unchanged ... */ }
-        async function loadMarksEntrySheet(examId, className, subjectName) { /* ... Unchanged ... */ }
-        async function saveMarks(examId, className, subjectName) { /* ... Unchanged ... */ }
-
-        // --- STUDENT PROFILE MODAL ---
-        function handleSheetClick(event) { /* ... Unchanged ... */ }
-        async function openStudentProfileModal(studentId) { /* ... Unchanged ... */ }
-
-        // --- UNMODIFIED HELPERS (Paste from previous answer if needed) ---
-        async function loadAttendanceSheet() { const selectedClass = attClassSelect.value; const selectedDate = attDateEl.value; if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; } attSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`; const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).get(); const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name)); if (students.length === 0) { attSheetContainer.innerHTML = `<p>No active students in Class ${selectedClass} for this year.</p>`; return; } const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`; const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get(); const records = attendanceDoc.exists ? attendanceDoc.data().records : {}; let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3>`; students.forEach(s => { const status = records[s.id] || 'present'; sheetHtml += `<div class="sheet-row" data-student-id="${s.id}"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group attendance-radios"><input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status==='present'?'checked':''}> <label for="p_${s.id}">Present</label><input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status==='absent'?'checked':''}> <label for="a_${s.id}">Absent</label></div></div>`; }); sheetHtml += `<button id="save-att-btn" class="btn btn-success" style="margin-top:1.5em; margin-left:0;">Save Attendance</button>`; attSheetContainer.innerHTML = sheetHtml; document.getElementById('save-att-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate); }
-        async function saveAttendance(docId, aClass, aDate) { const saveBtn = document.getElementById('save-att-btn'); saveBtn.disabled = true; const records = {}; document.querySelectorAll('#attendance-sheet-container .sheet-row').forEach(row => { records[row.dataset.studentId] = document.querySelector(`input[name="s_${row.dataset.studentId}"]:checked`).value; }); try { await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records, academicYear: CURRENT_ACADEMIC_YEAR }); alert('Attendance saved!'); } catch(err) { alert(`Error: ${err.message}`); } finally { saveBtn.disabled = false; } }
+        // --- MARKS ENTRY & STUDENT PROFILE MODAL LOGIC (UNCHANGED & FUNCTIONAL) ---
         function renderMarksEntryTaskList() { if (examsCache.length === 0 || mySubjectsCache.length === 0) { marksTaskListContainer.innerHTML = '<h2>Pending Mark Entry</h2><p>No mark entry tasks available.</p>'; marksTabBtn.style.display = 'none'; return; } marksTabBtn.style.display = 'inline-block'; let html = '<h2>Pending Mark Entry</h2>'; let taskCount = 0; examsCache.forEach(exam => { let examHtml = ''; mySubjectsCache.forEach(subject => { const marksKey = `CLASS_${subject.className}_${subject.subjectName.replace(/\s+/g, '_').toUpperCase()}`; if (exam.marksStructure[marksKey]) { taskCount++; examHtml += `<div class="mark-entry-task"><span><strong>Class ${subject.className}</strong> - ${subject.subjectName}</span><button class="btn btn-sm btn-edit enter-marks-btn" data-exam-id="${exam.id}" data-class-name="${subject.className}" data-subject-name="${subject.subjectName}">Enter Marks</button></div>`; } }); if (examHtml) { html += `<div class="exam-group"><h3>${exam.examName}</h3>${examHtml}</div>`; } }); if (taskCount === 0) { html += '<p>No subjects assigned to you are part of the created exams.</p>'; } marksTaskListContainer.innerHTML = html; }
         function handleTaskListClick(event) { if (event.target.classList.contains('enter-marks-btn')) { const { examId, className, subjectName } = event.target.dataset; loadMarksEntrySheet(examId, className, subjectName); } }
         async function loadMarksEntrySheet(examId, className, subjectName) { marksTaskListContainer.style.display = 'none'; marksSheetContainer.style.display = 'block'; marksSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`; const selectedExam = examsCache.find(e => e.id === examId); const marksKey = `CLASS_${className}_${subjectName.replace(/\s+/g, '_').toUpperCase()}`; const maxMarks = selectedExam.marksStructure[marksKey]; const studentSnap = await db.collection('students').where('class', '==', Number(className)).get(); const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name)); const studentIds = students.map(s => s.id); if (studentIds.length === 0) { marksSheetContainer.innerHTML = `<p>No active students in this class.</p><button id="back-to-list-btn" class="btn btn-edit">Back to List</button>`; document.getElementById('back-to-list-btn').onclick = () => { marksSheetContainer.style.display = 'none'; marksSheetContainer.innerHTML = ''; marksTaskListContainer.style.display = 'block'; }; return; } const marksPromises = studentIds.map(id => db.collection('marks').doc(`${examId}_${id}`).get()); const marksDocs = await Promise.all(marksPromises); const marksMap = new Map(marksDocs.filter(doc => doc.exists).map(doc => [doc.id.split('_')[1], doc.data().marks])); let sheetHtml = `<h3>Marks for ${subjectName} (Max: ${maxMarks})</h3><p><strong>Exam:</strong> ${selectedExam.examName} | <strong>Class:</strong> ${className}</p>`; students.forEach(s => { const existingMarks = marksMap.get(s.id); const currentMark = existingMarks && existingMarks[subjectName] !== undefined ? existingMarks[subjectName] : ''; sheetHtml += `<div class="sheet-row" data-student-id="${s.id}" data-student-name="${s.name}"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group"><input type="number" min="0" max="${maxMarks}" value="${currentMark}" placeholder="N/A"></div></div>`; }); sheetHtml += `<div style="margin-top:1.5em; display:flex; gap:1em;"><button id="save-marks-btn" class="btn btn-success" style="margin-left:0;">Save Marks</button><button id="back-to-list-btn" class="btn btn-edit">Back to List</button></div>`; marksSheetContainer.innerHTML = sheetHtml; document.getElementById('save-marks-btn').onclick = () => saveMarks(examId, className, subjectName); document.getElementById('back-to-list-btn').onclick = () => { marksSheetContainer.style.display = 'none'; marksSheetContainer.innerHTML = ''; marksTaskListContainer.style.display = 'block'; }; }

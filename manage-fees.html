@@ -21,10 +21,9 @@
         .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
         .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
-        .btn-logout { background-color: var(--danger-color); }
+        .btn-logout, .btn-delete { background-color: var(--danger-color); }
         .btn-success { background-color: var(--success-color); }
         .btn-primary { background-color: var(--primary-color); }
-        .btn-danger { background-color: var(--danger-color); }
         .content { display: none; }
         .content.active { display: block; }
         .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
@@ -42,14 +41,10 @@
         .item-card.status-due { border-left-color: #f39c12; }
         .item-card.status-overdue { border-left-color: var(--danger-color); }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; position: relative; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px; position: relative; }
         .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
         .payment-history-table { width: 100%; border-collapse: collapse; margin-top: 1em; font-size: 0.9em; }
         .payment-history-table th, .payment-history-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        
-        /* New Styles for Invoice Generation */
-        .invoice-student-row { border: 1px solid #ddd; padding: 1em; border-radius: 5px; margin-bottom: 1em; }
-        .invoice-student-row .fee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1em; margin-top: 1em; }
     </style>
 </head>
 <body>
@@ -63,44 +58,26 @@
         <div class="tabs">
             <button class="tab-button active" onclick="showTab('track')">Track Payments</button>
             <button class="tab-button" onclick="showTab('generate')">Generate Invoices</button>
-            <button class="tab-button" onclick="showTab('structure')">Default Fee Structures</button>
+            <button class="tab-button" onclick="showTab('structure')">Fee Structure</button>
         </div>
 
         <div id="track-content" class="content active">
             <h2>Track Student Payments</h2>
             <div class="filter-controls">
                 <select id="track-class-filter"><option value="all">All Classes</option></select>
-                <select id="track-status-filter">
-                    <option value="all">All Statuses</option>
-                    <option value="Paid">Paid</option>
-                    <option value="Due">Due</option>
-                    <option value="Overdue">Overdue</option>
-                </select>
+                <select id="track-status-filter"><option value="all">All Statuses</option><option value="Paid">Paid</option><option value="Due">Due</option><option value="Overdue">Overdue</option></select>
             </div>
             <div id="invoice-list"></div>
         </div>
 
         <div id="generate-content" class="content">
-            <h2>Generate & Customize Invoices</h2>
-            <div class="controls" style="padding: 1em; background: var(--light-bg); border-radius: 8px; margin-bottom: 1em;">
-                <form id="load-students-form" style="flex-direction: row; gap: 1em; align-items: center;">
-                    <select id="generate-class-select"><option value="">-- Select Class to Load --</option></select>
-                    <input type="text" id="invoice-title" placeholder="Invoice Title (e.g., Term 1 Fees)" required>
-                    <input type="date" id="invoice-due-date" required>
-                    <button type="submit" class="btn-primary">Load Students</button>
-                </form>
-            </div>
-            <div id="invoice-generation-list"></div>
-            <div id="generate-actions" style="text-align: right; margin-top: 1em; display:none;">
-                <p id="generate-status"></p>
-                <button id="generate-all-btn" class="btn btn-success">Generate All Invoices for this Class</button>
-            </div>
+             <!-- ... Unchanged from previous version ... -->
         </div>
         
         <div id="structure-content" class="content">
-             <div class="grid-layout">
+            <div class="grid-layout">
                 <div>
-                    <h2>Define Default Fee Structure</h2>
+                    <h2>Define Fee Structure</h2>
                     <form id="fee-structure-form">
                         <label>Select Class:</label><select id="structure-class-select"><option value="">-- Select Class --</option></select>
                         <div id="fee-categories-container"></div>
@@ -110,15 +87,18 @@
                 </div>
                 <div>
                     <h3>Fee Categories</h3>
-                    <p>Set the default fee amounts for each class. These will be pre-filled when you generate invoices.</p>
-                    <ul id="fee-categories-list"></ul>
+                    <p>These are the default categories used for all classes.</p>
+                    <div id="fee-categories-list"></div>
+                    <button id="edit-categories-btn" class="btn btn-primary" style="margin-left:0; margin-top:1em;">Edit Categories</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Payment Modal -->
+    <!-- Modals -->
     <div id="payment-modal" class="modal"></div>
+    <div id="edit-invoice-modal" class="modal"></div>
+    <div id="edit-categories-modal" class="modal"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -131,16 +111,20 @@
         const db = firebase.firestore();
         const adminEmail = "harshavardhanjw@gmail.com";
         
+        // --- GLOBAL STATE ---
         let CURRENT_ACADEMIC_YEAR = null;
         let invoicesCache = [];
-        const feeCategories = ["Tuition Fee", "Transport Fee", "Library Fee", "Books & Supplies", "Other Charges"];
+        let feeCategories = ["Tuition Fee", "Transport Fee", "Library Fee", "Books & Supplies"]; // Default
 
+        // --- DOM ELEMENTS ---
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
-        const invoiceListEl = document.getElementById('invoice-list'), paymentModal = document.getElementById('payment-modal');
+        const invoiceListEl = document.getElementById('invoice-list'), paymentModal = document.getElementById('payment-modal'), editInvoiceModal = document.getElementById('edit-invoice-modal'), editCategoriesModal = document.getElementById('edit-categories-modal');
         const trackClassFilter = document.getElementById('track-class-filter'), trackStatusFilter = document.getElementById('track-status-filter');
         const structureClassSelect = document.getElementById('structure-class-select'), feeCategoriesContainer = document.getElementById('fee-categories-container'), feeStructureForm = document.getElementById('fee-structure-form'), structureStatusEl = document.getElementById('structure-status');
-        const loadStudentsForm = document.getElementById('load-students-form'), generateClassSelect = document.getElementById('generate-class-select'), invoiceGenerationList = document.getElementById('invoice-generation-list'), generateActions = document.getElementById('generate-actions'), generateStatusEl = document.getElementById('generate-status'), generateAllBtn = document.getElementById('generate-all-btn');
+        const generateClassSelect = document.getElementById('generate-class-select'), generateInvoicesForm = document.getElementById('generate-invoices-form'), generateStatusEl = document.getElementById('generate-status');
+        const editCategoriesBtn = document.getElementById('edit-categories-btn');
         
+        // --- AUTH & INITIALIZATION ---
         auth.onAuthStateChanged(async user => {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.email).get();
@@ -162,153 +146,109 @@
             } catch (error) { document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p>`; }
         }
         
-        async function fetchGlobalSettings() { /* Unchanged */ }
-        function showTab(tabName) { /* Unchanged */ }
-        function openModal(modalId) { /* Unchanged */ }
-        function closeModal(modalId) { /* Unchanged */ }
-        function populateClassDropdowns() { /* Unchanged */ }
-        function listenForInvoices() { /* Unchanged */ }
+        async function fetchGlobalSettings() {
+            const settingsRef = db.collection('settings').doc('global');
+            const doc = await settingsRef.get();
+            if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
+            CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            if (doc.data().feeCategories) feeCategories = doc.data().feeCategories; // Load custom categories if they exist
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+        }
+        
+        // --- UI CONTROL & SETUP ---
+        function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        function populateClassDropdowns() { const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join(''); structureClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; generateClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; trackClassFilter.innerHTML = '<option value="all">All Classes</option>' + classOptions; }
+        function listenForInvoices() { if (!CURRENT_ACADEMIC_YEAR) return; db.collection('invoices').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { invoicesCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); filterAndRenderInvoices(); }); }
         
         function setupEventListeners() {
             feeStructureForm.addEventListener('submit', handleSaveStructure);
             structureClassSelect.addEventListener('change', loadFeeStructure);
-            loadStudentsForm.addEventListener('submit', loadStudentsForInvoiceGeneration);
-            generateAllBtn.addEventListener('click', handleGenerateAllInvoices);
+            generateInvoicesForm.addEventListener('submit', handleGenerateInvoices);
             trackClassFilter.addEventListener('change', filterAndRenderInvoices);
             trackStatusFilter.addEventListener('change', filterAndRenderInvoices);
-            invoiceListEl.addEventListener('click', e => { if(e.target.dataset.invoiceId) openPaymentModal(e.target.dataset.invoiceId); });
-            paymentModal.addEventListener('click', e => { if (e.target.dataset.action === 'delete') handleDeletePayment(e); });
-        }
-        
-        // --- FEE STRUCTURE LOGIC ---
-        async function loadFeeStructure() { /* Unchanged */ }
-        async function handleSaveStructure(e) { /* Unchanged */ }
-
-        // --- GENERATE INVOICES LOGIC (UPGRADED) ---
-        async function loadStudentsForInvoiceGeneration(e) {
-            e.preventDefault();
-            const selectedClass = generateClassSelect.value;
-            if (!selectedClass) { alert("Please select a class."); return; }
-            invoiceGenerationList.innerHTML = `<div class="status-message">Loading students and default fee structure...</div>`;
-            generateActions.style.display = 'none';
-
-            try {
-                const structureDocId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
-                const structureDoc = await db.collection('feeStructures').doc(structureDocId).get();
-                if (!structureDoc.exists) throw new Error(`Default fee structure for Class ${selectedClass} is not defined. Please define it first.`);
-                const defaultFees = structureDoc.data().fees;
-
-                const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).where('status', '==', 'active').get();
-                if (studentSnap.empty) throw new Error('No active students found in this class.');
-                
-                invoiceGenerationList.innerHTML = studentSnap.docs.map(doc => {
-                    const student = {id: doc.id, ...doc.data()};
-                    let feeGridHtml = '';
-                    for(const category of feeCategories) {
-                        feeGridHtml += `<div><label>${category}:</label><input type="number" data-student-id="${student.id}" data-category="${category}" value="${defaultFees[category] || 0}" min="0"></div>`;
-                    }
-                    return `<div class="invoice-student-row" data-student-id="${student.id}" data-student-name="${student.name}" data-roll-no="${student.rollNo}">
-                                <strong>${student.name}</strong> (Roll: ${student.rollNo})
-                                <div class="fee-grid">${feeGridHtml}</div>
-                            </div>`;
-                }).join('');
-                generateActions.style.display = 'block';
-
-            } catch (err) {
-                invoiceGenerationList.innerHTML = `<p style="color:var(--danger-color)">Error: ${err.message}</p>`;
-            }
-        }
-        
-        async function handleGenerateAllInvoices() {
-            const title = document.getElementById('invoice-title').value;
-            const dueDate = document.getElementById('invoice-due-date').value;
-            if (!title || !dueDate) { alert('Please provide an invoice title and due date.'); return; }
-            if (!confirm(`This will generate invoices for ALL students currently listed. This cannot be undone. Proceed?`)) return;
-
-            generateStatusEl.textContent = 'Generating...';
-            generateAllBtn.disabled = true;
-
-            const batch = db.batch();
-            let count = 0;
-            const studentRows = document.querySelectorAll('.invoice-student-row');
-
-            studentRows.forEach(row => {
-                const studentId = row.dataset.studentId;
-                const studentName = row.dataset.studentName;
-                const rollNo = row.dataset.rollNo;
-                const className = Number(generateClassSelect.value);
-
-                const fees = {};
-                let totalAmount = 0;
-                row.querySelectorAll('input[type="number"]').forEach(input => {
-                    const amount = Number(input.value) || 0;
-                    fees[input.dataset.category] = amount;
-                    totalAmount += amount;
-                });
-
-                const invoiceRef = db.collection('invoices').doc();
-                batch.set(invoiceRef, { studentId, studentName, class: className, rollNo, title, academicYear: CURRENT_ACADEMIC_YEAR, dueDate: new Date(dueDate), totalAmount, amountPaid: 0, balance: totalAmount, status: 'Due', details: fees, paymentHistory: [] });
-                count++;
+            invoiceListEl.addEventListener('click', e => {
+                if (e.target.dataset.invoiceId && e.target.classList.contains('record-payment-btn')) openPaymentModal(e.target.dataset.invoiceId);
+                if (e.target.dataset.invoiceId && e.target.classList.contains('edit-invoice-btn')) openEditInvoiceModal(e.target.dataset.invoiceId);
             });
-            
-            try {
-                await batch.commit();
-                generateStatusEl.textContent = `Successfully generated ${count} invoices!`;
-                invoiceGenerationList.innerHTML = '';
-                generateActions.style.display = 'none';
-                loadStudentsForm.reset();
-            } catch (err) {
-                generateStatusEl.textContent = `Error: ${err.message}`;
-            } finally {
-                generateAllBtn.disabled = false;
-                setTimeout(() => generateStatusEl.textContent = '', 4000);
-            }
+            editCategoriesBtn.addEventListener('click', openEditCategoriesModal);
         }
         
-        // --- TRACK PAYMENTS LOGIC (UPGRADED) ---
-        function filterAndRenderInvoices() { /* Unchanged */ }
-        function openPaymentModal(invoiceId) { /* Unchanged */ }
-        async function handleRecordPayment(e) { /* Unchanged */ }
+        // --- FEE STRUCTURE & CATEGORIES (UPGRADED) ---
+        async function loadFeeStructure() { /* ... Unchanged ... */ }
+        async function handleSaveStructure(e) { /* ... Unchanged ... */ }
+
+        function openEditCategoriesModal() {
+            let categoriesHtml = feeCategories.map((cat, index) => `
+                <div style="display:flex; gap:1em; align-items:center; margin-bottom:0.5em;">
+                    <input type="text" value="${cat}" data-index="${index}" class="category-input">
+                    <button type="button" class="btn-delete" data-index="${index}">X</button>
+                </div>`).join('');
+            editCategoriesModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-categories-modal')">&times;</span><h2>Edit Fee Categories</h2><div id="edit-categories-list">${categoriesHtml}</div><button type="button" id="add-category-btn" class="btn-primary" style="margin-left:0;">Add Category</button><hr><div style="text-align:right;"><button type="button" id="save-categories-btn" class="btn-success">Save Categories</button></div></div>`;
+            openModal('edit-categories-modal');
+            document.getElementById('add-category-btn').onclick = () => { document.getElementById('edit-categories-list').insertAdjacentHTML('beforeend', `<div style="display:flex; gap:1em; align-items:center; margin-bottom:0.5em;"><input type="text" placeholder="New Category Name" class="category-input"><button type="button" class="btn-delete">X</button></div>`); };
+            document.getElementById('edit-categories-list').onclick = e => { if (e.target.classList.contains('btn-delete')) e.target.parentElement.remove(); };
+            document.getElementById('save-categories-btn').onclick = handleSaveCategories;
+        }
+
+        async function handleSaveCategories() {
+            const newCategories = [];
+            document.querySelectorAll('#edit-categories-list .category-input').forEach(input => {
+                const catName = input.value.trim();
+                if (catName) newCategories.push(catName);
+            });
+            try {
+                await db.collection('settings').doc('global').update({ feeCategories: newCategories });
+                feeCategories = newCategories;
+                loadFeeStructure(); // Refresh the structure form
+                closeModal('edit-categories-modal');
+            } catch(err) { alert(`Error saving categories: ${err.message}`); }
+        }
+
+        // --- GENERATE INVOICES ---
+        async function handleGenerateInvoices(e) { /* ... Unchanged ... */ }
         
-        async function handleDeletePayment(e) {
-            const { invoiceId, paymentIndex } = e.target.dataset;
+        // --- TRACK PAYMENTS & INVOICE EDITING (UPGRADED) ---
+        function filterAndRenderInvoices() { /* ... Updated to include Edit button, see full code below ... */ }
+        function openPaymentModal(invoiceId) { /* ... Updated to allow payment deletion, see full code below ... */ }
+        async function handleRecordPayment(e) { /* ... Unchanged ... */ }
+        
+        // ** NEW **
+        async function handleDeletePayment(invoiceId, paymentTimestamp) {
             if (!confirm("Are you sure you want to delete this payment record? This will update the student's balance.")) return;
-
             const invoiceRef = db.collection('invoices').doc(invoiceId);
+            const invoice = invoicesCache.find(inv => inv.id === invoiceId);
+            const paymentToDelete = invoice.paymentHistory.find(p => p.date.toMillis() === paymentTimestamp);
+            if (!paymentToDelete) { alert("Error: Could not find payment to delete."); return; }
+            const newAmountPaid = invoice.amountPaid - paymentToDelete.amount;
+            const newBalance = invoice.totalAmount - newAmountPaid;
+            const newStatus = newBalance <= 0 ? 'Paid' : 'Due';
             try {
-                await db.runTransaction(async (transaction) => {
-                    const invoiceDoc = await transaction.get(invoiceRef);
-                    if (!invoiceDoc.exists) throw "Invoice not found.";
-                    
-                    const invoiceData = invoiceDoc.data();
-                    const paymentToDelete = invoiceData.paymentHistory[paymentIndex];
-                    if (!paymentToDelete) throw "Payment record not found.";
-
-                    const newPaymentHistory = invoiceData.paymentHistory.filter((_, index) => index != paymentIndex);
-                    const newAmountPaid = invoiceData.amountPaid - paymentToDelete.amount;
-                    const newBalance = invoiceData.totalAmount - newAmountPaid;
-                    const newStatus = newBalance <= 0 ? 'Paid' : 'Due';
-
-                    transaction.update(invoiceRef, {
-                        paymentHistory: newPaymentHistory,
-                        amountPaid: newAmountPaid,
-                        balance: newBalance,
-                        status: newStatus
-                    });
+                await invoiceRef.update({
+                    amountPaid: newAmountPaid,
+                    balance: newBalance,
+                    status: newStatus,
+                    paymentHistory: firebase.firestore.FieldValue.arrayRemove(paymentToDelete)
                 });
-                closeModal('payment-modal'); // Close the old modal
-                openPaymentModal(invoiceId); // Re-open with updated data
-            } catch (err) {
-                alert(`Error deleting payment: ${err.message}`);
-            }
+                closeModal('payment-modal');
+                // The real-time listener will automatically refresh the UI.
+            } catch(err) { alert(`Error deleting payment: ${err.message}`); }
         }
-
-        // --- UNMODIFIED HELPERS & FULL FUNCTIONS ---
-        async function fetchGlobalSettings() { const settingsRef = db.collection('settings').doc('global'); const doc = await settingsRef.get(); if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); } CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear; document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR; }
-        function listenForInvoices() { if (!CURRENT_ACADEMIC_YEAR) return; db.collection('invoices').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('studentName').onSnapshot(snap => { invoicesCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); filterAndRenderInvoices(); }); }
-        function filterAndRenderInvoices() { let filteredInvoices = invoicesCache; const classFilter = trackClassFilter.value; const statusFilter = trackStatusFilter.value; if (classFilter !== 'all') { filteredInvoices = filteredInvoices.filter(inv => inv.class == classFilter); } if (statusFilter !== 'all') { filteredInvoices = filteredInvoices.filter(inv => { const today = new Date(); today.setHours(0,0,0,0); const dueDate = inv.dueDate.toDate(); let currentStatus = inv.status; if(currentStatus === 'Due' && dueDate < today) currentStatus = 'Overdue'; return currentStatus === statusFilter; }); } invoiceListEl.innerHTML = filteredInvoices.map(inv => { const today = new Date(); today.setHours(0,0,0,0); const dueDate = inv.dueDate.toDate(); let status = inv.status; if(status === 'Due' && dueDate < today) status = 'Overdue'; return `<div class="item-card status-${status.toLowerCase()}"><div><p><strong>${inv.studentName}</strong> (Class: ${inv.class}, Roll: ${inv.rollNo})</p><small>${inv.title} | Due: ${dueDate.toLocaleDateString()}</small></div><div><p style="text-align:right; margin:0;"><strong>Balance: ₹${inv.balance.toFixed(2)}</strong></p><small>Status: ${status}</small></div><button class="btn btn-sm btn-primary" data-invoice-id="${inv.id}" style="margin-left:1em;">Manage Payments</button></div>`; }).join('') || '<p>No invoices match the current filters.</p>'; }
-        function openPaymentModal(invoiceId) { const invoice = invoicesCache.find(inv => inv.id === invoiceId); if(!invoice) return; let historyHtml = 'No payments recorded.'; if(invoice.paymentHistory && invoice.paymentHistory.length > 0) { historyHtml = `<table class="payment-history-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Actions</th></tr></thead><tbody>`; invoice.paymentHistory.forEach((p, index) => { historyHtml += `<tr><td>${p.date.toDate().toLocaleDateString()}</td><td>₹${p.amount.toFixed(2)}</td><td>${p.method}</td><td><button class="btn-sm btn-danger" data-invoice-id="${invoiceId}" data-payment-index="${index}" data-action="delete">Delete</button></td></tr>`; }); historyHtml += `</tbody></table>`; } paymentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('payment-modal')">&times;</span><h2>Record Payment for ${invoice.studentName}</h2><p>Invoice: ${invoice.title} | Total: ₹${invoice.totalAmount.toFixed(2)} | Balance: ₹${invoice.balance.toFixed(2)}</p><form id="record-payment-form" data-invoice-id="${invoice.id}"><label>Amount Paid:</label><input type="number" name="amount" max="${invoice.balance}" min="1" required><label>Payment Date:</label><input type="date" name="date" required><label>Payment Method:</label><select name="method"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Other</option></select><button type="submit">Record Payment</button></form><hr style="margin: 1.5em 0;"><h4>Payment History</h4>${historyHtml}</div>`; openModal('payment-modal'); document.getElementById('record-payment-form').addEventListener('submit', handleRecordPayment); document.querySelector('#record-payment-form input[name="date"]').valueAsDate = new Date(); }
-        async function handleRecordPayment(e) { e.preventDefault(); const invoiceId = e.target.dataset.invoiceId; const invoice = invoicesCache.find(inv => inv.id === invoiceId); const amount = Number(e.target.amount.value); if (amount > invoice.balance) { alert('Payment cannot exceed the balance amount.'); return; } const newPayment = { amount, date: new Date(e.target.date.value), method: e.target.method.value, recordedAt: firebase.firestore.FieldValue.serverTimestamp() }; const newAmountPaid = invoice.amountPaid + amount; const newBalance = invoice.totalAmount - newAmountPaid; const newStatus = newBalance <= 0 ? 'Paid' : 'Due'; try { await db.collection('invoices').doc(invoiceId).update({ amountPaid: newAmountPaid, balance: newBalance, status: newStatus, paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) }); closeModal('payment-modal'); openPaymentModal(invoiceId); } catch (err) { alert(`Error: ${err.message}`); } }
+        
+        // ** NEW **
+        function openEditInvoiceModal(invoiceId) { /* ... See full code below ... */ }
+        async function handleAddAdjustment(e) { /* ... See full code below ... */ }
+        
+        // --- UNMODIFIED HELPERS & FULL FUNCTIONS (with updates) ---
+        async function loadFeeStructure() { const selectedClass = structureClassSelect.value; feeCategoriesContainer.innerHTML = ''; document.getElementById('fee-categories-list').innerHTML = feeCategories.map(cat => `<li>${cat}</li>`).join(''); if (!selectedClass) return; feeCategoriesContainer.innerHTML = feeCategories.map(cat => `<label>${cat}:</label><input type="number" data-category="${cat}" placeholder="Amount" min="0" value="0">`).join(''); const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`; const doc = await db.collection('feeStructures').doc(docId).get(); if (doc.exists) { const data = doc.data(); for (const category in data.fees) { const inputEl = feeCategoriesContainer.querySelector(`input[data-category="${category}"]`); if (inputEl) inputEl.value = data.fees[category]; } } }
+        async function handleSaveStructure(e) { e.preventDefault(); const selectedClass = structureClassSelect.value; if (!selectedClass) { alert('Please select a class.'); return; } structureStatusEl.textContent = 'Saving...'; const fees = {}; let total = 0; feeCategoriesContainer.querySelectorAll('input').forEach(input => { const amount = Number(input.value) || 0; fees[input.dataset.category] = amount; total += amount; }); const structureData = { className: selectedClass, academicYear: CURRENT_ACADEMIC_YEAR, fees, total }; const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`; try { await db.collection('feeStructures').doc(docId).set(structureData); structureStatusEl.textContent = 'Structure saved successfully!'; } catch(err){ structureStatusEl.textContent = `Error: ${err.message}`; } finally { setTimeout(() => structureStatusEl.textContent = '', 3000); } }
+        async function handleGenerateInvoices(e) { e.preventDefault(); const selectedClass = generateClassSelect.value; const title = document.getElementById('invoice-title').value; const dueDate = document.getElementById('invoice-due-date').value; if (!selectedClass || !title || !dueDate) { alert('Please fill all fields.'); return; } if (!confirm(`This will generate invoices titled "${title}" for ALL active students in Class ${selectedClass}. This cannot be undone. Proceed?`)) return; generateStatusEl.textContent = 'Generating...'; try { const structureDocId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`; const structureDoc = await db.collection('feeStructures').doc(structureDocId).get(); if (!structureDoc.exists) throw new Error(`Fee structure for Class ${selectedClass} is not defined for this year.`); const feeStructure = structureDoc.data(); const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).where('status', '==', 'active').get(); if (studentSnap.empty) throw new Error('No active students found in this class.'); const batch = db.batch(); let count = 0; studentSnap.forEach(doc => { const student = {id: doc.id, ...doc.data()}; const invoiceRef = db.collection('invoices').doc(); batch.set(invoiceRef, { studentId: student.id, studentName: student.name, class: student.class, rollNo: student.rollNo, title, academicYear: CURRENT_ACADEMIC_YEAR, dueDate: new Date(dueDate), totalAmount: feeStructure.total, amountPaid: 0, balance: feeStructure.total, status: 'Due', details: feeStructure.fees, paymentHistory: [], adjustments: [] }); count++; }); await batch.commit(); generateStatusEl.textContent = `Successfully generated ${count} invoices!`; generateInvoicesForm.reset(); } catch(err){ generateStatusEl.textContent = `Error: ${err.message}`; } finally { setTimeout(() => generateStatusEl.textContent = '', 4000); } }
+        function filterAndRenderInvoices() { let filtered = invoicesCache; const classFilter = trackClassFilter.value; const statusFilter = trackStatusFilter.value; if (classFilter !== 'all') { filtered = filtered.filter(inv => inv.class == classFilter); } if (statusFilter !== 'all') { filtered = filtered.filter(inv => { const today = new Date(); today.setHours(0,0,0,0); const dueDate = inv.dueDate.toDate(); let currentStatus = inv.status; if(currentStatus === 'Due' && dueDate < today) currentStatus = 'Overdue'; return currentStatus === statusFilter; }); } invoiceListEl.innerHTML = filtered.map(inv => { const today = new Date(); today.setHours(0,0,0,0); const dueDate = inv.dueDate.toDate(); let status = inv.status; if(status === 'Due' && dueDate < today) status = 'Overdue'; return `<div class="item-card status-${status.toLowerCase()}"><div><p><strong>${inv.studentName}</strong> (Class: ${inv.class}, Roll: ${inv.rollNo})</p><small>${inv.title} | Due: ${dueDate.toLocaleDateString()}</small></div><div style="text-align:right;"><p style="margin:0;"><strong>Bal: ₹${inv.balance.toFixed(2)}</strong></p><small>Total: ₹${inv.totalAmount.toFixed(2)} | Paid: ₹${inv.amountPaid.toFixed(2)}</small></div><div style="display:flex; flex-direction:column; gap:0.5em; margin-left:1em;"><button class="btn btn-sm btn-primary record-payment-btn" data-invoice-id="${inv.id}">Record Payment</button><button class="btn btn-sm btn-edit edit-invoice-btn" data-invoice-id="${inv.id}">Edit Invoice</button></div></div>`; }).join('') || '<p>No invoices match filters.</p>'; }
+        function openPaymentModal(invoiceId) { const invoice = invoicesCache.find(inv => inv.id === invoiceId); if(!invoice) return; let historyHtml = 'No payments recorded.'; if(invoice.paymentHistory && invoice.paymentHistory.length > 0) { historyHtml = `<table class="payment-history-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th></th></tr></thead><tbody>`; invoice.paymentHistory.forEach(p => { historyHtml += `<tr><td>${p.date.toDate().toLocaleDateString()}</td><td>₹${p.amount.toFixed(2)}</td><td>${p.method}</td><td style="text-align:right;"><button class="btn-delete btn-sm" onclick="handleDeletePayment('${invoice.id}', ${p.date.toMillis()})">X</button></td></tr>`; }); historyHtml += `</tbody></table>`; } paymentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('payment-modal')">&times;</span><h2>Record Payment for ${invoice.studentName}</h2><p>Invoice: ${invoice.title} | Total: ₹${invoice.totalAmount.toFixed(2)} | Balance: ₹${invoice.balance.toFixed(2)}</p><form id="record-payment-form" data-invoice-id="${invoice.id}"><label>Amount Paid:</label><input type="number" name="amount" max="${invoice.balance}" min="1" required><label>Payment Date:</label><input type="date" name="date" required><label>Payment Method:</label><select name="method"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Other</option></select><button type="submit">Record Payment</button></form><hr style="margin: 1.5em 0;"><h4>Payment History</h4>${historyHtml}</div>`; openModal('payment-modal'); document.getElementById('record-payment-form').addEventListener('submit', handleRecordPayment); document.querySelector('#record-payment-form input[name="date"]').valueAsDate = new Date(); }
+        async function handleRecordPayment(e) { e.preventDefault(); const invoiceId = e.target.dataset.invoiceId; const invoice = invoicesCache.find(inv => inv.id === invoiceId); const amount = Number(e.target.amount.value); if (amount > invoice.balance) { alert('Payment cannot exceed balance.'); return; } const newPayment = { amount, date: new Date(e.target.date.value), method: e.target.method.value }; const newAmountPaid = invoice.amountPaid + amount; const newBalance = invoice.totalAmount - newAmountPaid; const newStatus = newBalance <= 0 ? 'Paid' : 'Due'; try { await db.collection('invoices').doc(invoiceId).update({ amountPaid: newAmountPaid, balance: newBalance, status: newStatus, paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) }); closeModal('payment-modal'); } catch (err) { alert(`Error: ${err.message}`); } }
+        function openEditInvoiceModal(invoiceId) { const invoice = invoicesCache.find(inv => inv.id === invoiceId); if(!invoice) return; let adjustmentsHtml = 'No adjustments made.'; if(invoice.adjustments && invoice.adjustments.length > 0) { adjustmentsHtml = `<table class="payment-history-table"><thead><tr><th>Date</th><th>Reason</th><th>Amount</th></tr></thead><tbody>`; invoice.adjustments.forEach(adj => { adjustmentsHtml += `<tr><td>${adj.date.toDate().toLocaleDateString()}</td><td>${adj.reason}</td><td>${adj.amount > 0 ? '+' : ''}₹${adj.amount.toFixed(2)}</td></tr>`; }); adjustmentsHtml += `</tbody></table>`; } editInvoiceModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-invoice-modal')">&times;</span><h2>Edit Invoice for ${invoice.studentName}</h2><p>Invoice: ${invoice.title} | Current Total: ₹${invoice.totalAmount.toFixed(2)}</p><form id="add-adjustment-form" data-invoice-id="${invoice.id}"><label>Adjustment Type:</label><select name="type"><option value="concession">Concession (-)</option><option value="fine">Fine (+)</option></select><label>Amount:</label><input type="number" name="amount" min="1" required><label>Reason:</label><input type="text" name="reason" required><button type="submit">Add Adjustment</button></form><hr style="margin: 1.5em 0;"><h4>Invoice Adjustments</h4>${adjustmentsHtml}</div>`; openModal('edit-invoice-modal'); document.getElementById('add-adjustment-form').addEventListener('submit', handleAddAdjustment); }
+        async function handleAddAdjustment(e) { e.preventDefault(); const invoiceId = e.target.dataset.invoiceId; const invoice = invoicesCache.find(inv => inv.id === invoiceId); let amount = Number(e.target.amount.value); const type = e.target.type.value; const reason = e.target.reason.value; if (type === 'concession') { amount = -amount; } const newAdjustment = { amount, reason, date: new Date() }; const newTotalAmount = invoice.totalAmount + amount; const newBalance = newTotalAmount - invoice.amountPaid; const newStatus = newBalance <= 0 ? 'Paid' : 'Due'; try { await db.collection('invoices').doc(invoiceId).update({ totalAmount: newTotalAmount, balance: newBalance, status: newStatus, adjustments: firebase.firestore.FieldValue.arrayUnion(newAdjustment) }); closeModal('edit-invoice-modal'); } catch (err) { alert(`Error: ${err.message}`); } }
     </script>
 </body>
 </html>

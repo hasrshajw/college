@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Settings - Admin Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 800px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; }
+        .btn-logout { background-color: var(--danger-color); }
+        .btn-success { background-color: var(--success-color); }
+        .btn-delete { background-color: var(--danger-color); padding: 5px 10px; font-size: 12px; }
+
+        .settings-section { margin-bottom: 2.5em; }
+        .settings-section h2 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; }
+        .form-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 1em 2em; align-items: center; }
+        .form-grid label { font-weight: 500; }
+        .form-grid input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .grading-policy-table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        .grading-policy-table th, .grading-policy-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .grading-policy-table th { background-color: var(--light-bg); }
+        .grading-policy-table input { width: 80%; }
+        
+        .save-bar { text-align: right; margin-top: 1.5em; }
+        #save-status { font-style: italic; color: var(--success-color); }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info"><h1>System Settings</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+        
+        <form id="settings-form">
+            <div class="settings-section">
+                <h2>Academic Settings</h2>
+                <div class="form-grid">
+                    <label for="current-academic-year">Current Academic Year:</label>
+                    <input type="text" id="current-academic-year" name="currentAcademicYear" placeholder="e.g., 2024-2025" required>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2>School Information</h2>
+                <div class="form-grid">
+                    <label for="school-name">School Name:</label>
+                    <input type="text" id="school-name" name="schoolName" placeholder="e.g., Knowledge Valley High School" required>
+                    <label for="school-address">School Address:</label>
+                    <input type="text" id="school-address" name="schoolAddress" placeholder="e.g., 123 University Ave, Knowledge City">
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2>Financial Settings</h2>
+                <div class="form-grid">
+                    <label for="pass-percentage">Pass Percentage (%):</label>
+                    <input type="number" id="pass-percentage" name="passPercentage" min="0" max="100" placeholder="e.g., 40">
+                    <label for="currency-symbol">Currency Symbol:</label>
+                    <input type="text" id="currency-symbol" name="currencySymbol" placeholder="e.g., ₹, $, €">
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2>Grading Policy</h2>
+                <table id="grading-policy-table" class="grading-policy-table">
+                    <thead><tr><th>Grade</th><th>Minimum Percentage (%)</th><th>Action</th></tr></thead>
+                    <tbody><!-- Rows will be generated here --></tbody>
+                </table>
+                <button type="button" id="add-grade-btn" class="btn btn-primary" style="margin-top: 1em; margin-left: 0;">Add Grade</button>
+            </div>
+
+            <div class="save-bar">
+                <span id="save-status"></span>
+                <button type="submit" class="btn btn-success">Save All Settings</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = { /* Your Config */ };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const adminEmail = "harshavardhanjw@gmail.com";
+
+        // DOM Elements
+        const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
+        const settingsForm = document.getElementById('settings-form');
+        const gradingTableBody = document.querySelector('#grading-policy-table tbody');
+        const addGradeBtn = document.getElementById('add-grade-btn');
+        const saveStatusEl = document.getElementById('save-status');
+        
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(user => {
+            if (user && user.email === adminEmail) { mainContainer.style.display = 'block'; userEmailEl.textContent = user.email; loadSettings(); } 
+            else { window.location.href = 'index.html'; }
+        });
+        logoutBtn.onclick = () => auth.signOut();
+        
+        // --- DATA HANDLING ---
+        async function loadSettings() {
+            try {
+                const doc = await db.collection('settings').doc('global').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    // Populate basic fields
+                    settingsForm.currentAcademicYear.value = data.currentAcademicYear || '';
+                    settingsForm.schoolName.value = data.schoolName || '';
+                    settingsForm.schoolAddress.value = data.schoolAddress || '';
+                    settingsForm.passPercentage.value = data.passPercentage || 40;
+                    settingsForm.currencySymbol.value = data.currencySymbol || '₹';
+
+                    // Populate grading policy
+                    if (data.gradingPolicy && Array.isArray(data.gradingPolicy)) {
+                        renderGradingPolicy(data.gradingPolicy);
+                    } else {
+                        // Provide a default policy if none exists
+                        renderGradingPolicy([
+                            { grade: 'A+', minPercentage: 90 },
+                            { grade: 'A', minPercentage: 80 },
+                            { grade: 'B', minPercentage: 70 },
+                            { grade: 'C', minPercentage: 60 },
+                            { grade: 'D', minPercentage: 50 },
+                            { grade: 'F', minPercentage: 0 }
+                        ]);
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading settings:", error);
+                alert("Could not load system settings.");
+            }
+        }
+        
+        async function handleSaveSettings(e) {
+            e.preventDefault();
+            saveStatusEl.textContent = 'Saving...';
+            
+            // Collect grading policy data
+            const gradingPolicy = [];
+            gradingTableBody.querySelectorAll('tr').forEach(row => {
+                const grade = row.querySelector('input[name="grade"]').value.trim();
+                const minPercentage = Number(row.querySelector('input[name="minPercentage"]').value);
+                if (grade) {
+                    gradingPolicy.push({ grade, minPercentage });
+                }
+            });
+            // Sort by percentage descending to ensure correct grade calculation later
+            gradingPolicy.sort((a, b) => b.minPercentage - a.minPercentage);
+
+            const settingsData = {
+                currentAcademicYear: settingsForm.currentAcademicYear.value.trim(),
+                schoolName: settingsForm.schoolName.value.trim(),
+                schoolAddress: settingsForm.schoolAddress.value.trim(),
+                passPercentage: Number(settingsForm.passPercentage.value),
+                currencySymbol: settingsForm.currencySymbol.value.trim(),
+                gradingPolicy
+            };
+
+            try {
+                await db.collection('settings').doc('global').set(settingsData, { merge: true });
+                saveStatusEl.textContent = 'Settings saved successfully!';
+            } catch (error) {
+                console.error("Error saving settings:", error);
+                saveStatusEl.textContent = 'Error saving settings!';
+                saveStatusEl.style.color = 'var(--danger-color)';
+            } finally {
+                setTimeout(() => {
+                    saveStatusEl.textContent = '';
+                    saveStatusEl.style.color = 'var(--success-color)';
+                }, 3000);
+            }
+        }
+        
+        // --- DYNAMIC UI FOR GRADING POLICY ---
+        function renderGradingPolicy(policy) {
+            gradingTableBody.innerHTML = ''; // Clear existing rows
+            policy.forEach(rule => {
+                addGradeRow(rule.grade, rule.minPercentage);
+            });
+        }
+
+        function addGradeRow(grade = '', minPercentage = '') {
+            const row = gradingTableBody.insertRow();
+            row.innerHTML = `
+                <td><input type="text" name="grade" placeholder="e.g., A+" value="${grade}" required></td>
+                <td><input type="number" name="minPercentage" placeholder="e.g., 90" value="${minPercentage}" min="0" max="100" required></td>
+                <td><button type="button" class="btn-delete">Remove</button></td>
+            `;
+            row.querySelector('.btn-delete').addEventListener('click', () => {
+                row.remove();
+            });
+        }
+        
+        // --- EVENT LISTENERS ---
+        settingsForm.addEventListener('submit', handleSaveSettings);
+        addGradeBtn.addEventListener('click', () => addGradeRow());
+    </script>
+</body>
+</html>

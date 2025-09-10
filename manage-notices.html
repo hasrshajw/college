@@ -31,14 +31,14 @@
         textarea { resize: vertical; min-height: 120px; }
         button[type="submit"] { background-color: var(--success-color); color: white; padding: 12px; border: none; font-size: 16px; }
         
-        .item-card { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 1em; border-left: 5px solid var(--primary-color); }
+        .item-card { background: #ecf0f1; padding: 1.25em; border-radius: 4px; margin-bottom: 1em; border-left: 5px solid var(--primary-color); }
         .item-card.type-Urgent { border-left-color: var(--urgent-color); }
         .item-card.type-Event { border-left-color: var(--event-color); }
         .item-card.type-Exam { border-left-color: var(--exam-color); }
         
         .item-card h3 { margin-top: 0; display: flex; align-items: center; gap: 0.5em;}
         .item-card p { white-space: pre-wrap; word-wrap: break-word; }
-        .item-card .meta { font-size: 0.8em; color: #7f8c8d; margin-top: 1em; border-top: 1px solid #ddd; padding-top: 0.5em; display: flex; justify-content: space-between; align-items: center; }
+        .item-card .meta { font-size: 0.8em; color: #7f8c8d; margin-top: 1em; border-top: 1px solid #ddd; padding-top: 1em; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1em; }
         .notice-tag { font-size: 0.75em; font-weight: 600; color: white; padding: 0.2em 0.6em; border-radius: 10px; }
         .tag-General { background-color: var(--primary-color); }
         .tag-Exam { background-color: var(--exam-color); }
@@ -107,7 +107,14 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -132,6 +139,7 @@
                 window.location.href = 'index.html';
             }
         });
+
         logoutBtn.onclick = () => auth.signOut();
 
         function initializePage() {
@@ -140,39 +148,37 @@
             setupEventListeners(); 
         }
         
-        // --- UI Control ---
+        // UI Control
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
-        // --- DATA LISTENER ---
-        // Sets up a real-time listener for the 'notices' collection.
+        // Data Listener
         function listenForNotices() {
             db.collection('notices').orderBy('publishedAt', 'desc').onSnapshot(snap => { 
                 noticesCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderNoticeList(); 
-            }, error => {
-                console.error("Error listening for notices:", error);
-                noticeListEl.innerHTML = "<p style='color: red;'>Error loading notices.</p>";
             });
         }
         
         // --- RENDER & DYNAMIC UI FUNCTIONS ---
-        // Populates the class options in the 'Visible To' dropdown.
         function populateClassDropdowns() {
             const classOptionsHtml = Array.from({length: 10}, (_, i) => `<option value="class_${i+1}">Class ${i+1} Only</option>`).join('');
             document.querySelector('#create-notice-audience optgroup').innerHTML = classOptionsHtml;
         }
 
-        // Renders the list of notices to the DOM.
         function renderNoticeList() {
             if (noticesCache.length === 0) {
                 noticeListEl.innerHTML = `<p>No notices have been published yet.</p>`;
                 return;
             }
             noticeListEl.innerHTML = noticesCache.map(notice => {
-                const publishedDate = notice.publishedAt ? notice.publishedAt.toDate().toLocaleString() : 'N/A';
+                // ** CRITICAL FIX **: Check if publishedAt exists before calling .toDate()
+                const publishedDate = notice.publishedAt && notice.publishedAt.toDate ? notice.publishedAt.toDate().toLocaleString() : 'Just now';
                 const audienceText = getAudienceText(notice.audience);
-                const isExpired = notice.expiryDate && new Date() > notice.expiryDate.toDate();
+                
+                // ** CRITICAL FIX **: Check if expiryDate exists before calling .toDate()
+                const expiryDate = notice.expiryDate && notice.expiryDate.toDate ? notice.expiryDate.toDate() : null;
+                const isExpired = expiryDate && new Date() > expiryDate;
                 
                 return `
                 <div class="item-card type-${notice.type}" style="${isExpired ? 'opacity: 0.5; border-left-color: #7f8c8d;' : ''}">
@@ -185,7 +191,7 @@
                         <span>
                             Published: ${publishedDate}<br>
                             Visible To: <strong>${audienceText}</strong> | 
-                            Expires: <strong>${notice.expiryDate ? notice.expiryDate.toDate().toLocaleDateString() : 'Never'}</strong>
+                            Expires: <strong>${expiryDate ? expiryDate.toLocaleDateString() : 'Never'}</strong>
                             ${isExpired ? ' (Expired)' : ''}
                         </span>
                         <div>
@@ -197,7 +203,6 @@
             }).join('');
         }
         
-        // Helper function to get a user-friendly string for the audience.
         function getAudienceText(audience) {
             if (audience === 'everyone') return 'Everyone';
             if (audience === 'teachers') return 'All Teachers';
@@ -208,12 +213,10 @@
         
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            // Use event delegation for the dynamic list of notices.
             noticeListEl.addEventListener('click', handleListAction);
             createNoticeForm.addEventListener('submit', handleCreateNotice);
         }
 
-        // Handles clicks on "Edit" or "Delete" buttons inside the notice list.
         function handleListAction(e) {
             const id = e.target.dataset.id;
             if (!id) return;
@@ -226,8 +229,6 @@
         }
         
         // --- CRUD HANDLERS ---
-        
-        // CREATE a new notice.
         async function handleCreateNotice(e) {
             e.preventDefault();
             createNoticeStatusEl.textContent = 'Publishing...';
@@ -251,11 +252,13 @@
             }
         }
         
-        // UPDATE an existing notice via a modal.
         function openEditNoticeModal(id) {
             const notice = noticesCache.find(n => n.id === id);
             const classOptionsHtml = Array.from({length: 10}, (_, i) => `<option value="class_${i+1}" ${notice.audience === `class_${i+1}` ? 'selected' : ''}>Class ${i+1} Only</option>`).join('');
             
+            // ** FIX **: Correctly format date for input field
+            const expiryValue = notice.expiryDate && notice.expiryDate.toDate ? notice.expiryDate.toDate().toISOString().split('T')[0] : '';
+
             editNoticeModal.innerHTML = `
                 <div class="modal-content">
                     <span class="close-btn" onclick="closeModal('edit-notice-modal')">&times;</span>
@@ -280,7 +283,7 @@
                             <optgroup label="Specific Classes">${classOptionsHtml}</optgroup>
                         </select>
                         <label>Expiry Date:</label>
-                        <input type="date" name="expiryDate" value="${notice.expiryDate ? notice.expiryDate.toDate().toISOString().split('T')[0] : ''}">
+                        <input type="date" name="expiryDate" value="${expiryValue}">
                         <button type="submit">Save Changes</button>
                     </form>
                 </div>`;
@@ -306,7 +309,6 @@
             }
         }
 
-        // DELETE a notice.
         function handleDelete(id) {
             if (confirm(`Are you sure you want to delete this notice?`)) {
                 db.collection('notices').doc(id).delete().catch(err => alert(`Error: ${err.message}`));

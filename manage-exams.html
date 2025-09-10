@@ -19,6 +19,7 @@
         }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1em; }
         .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
         .btn-logout, .btn-delete { background-color: var(--danger-color); }
         .btn-edit { background-color: var(--primary-color); }
@@ -38,7 +39,6 @@
         
         .marks-config { background: var(--light-bg); padding: 1em; border-radius: 5px; margin-top: 1em; }
         .marks-config.locked { opacity: 0.6; pointer-events: none; }
-        .marks-config.locked .marks-config-controls, .marks-config.locked .marks-item button { pointer-events: none; }
         .marks-config-controls { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center; }
         .marks-item { background: white; padding: 8px; border-radius: 4px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
         
@@ -80,8 +80,8 @@
             <div class="list-container">
                 <h2>Existing Exams</h2>
                 <div class="filter-controls" style="display:flex; gap: 1em; align-items: center; margin-bottom: 1.5em;">
-                    <label for="view-class-select">View Exams for Class:</label>
-                    <select id="view-class-select" style="flex-grow:1;"><option value="">-- Select a Class --</option></select>
+                    <label>View Exams for Class:</label>
+                    <select id="view-class-select" style="flex-grow:1;"><option value="">-- Select a Class to View Exams --</option></select>
                 </div>
                 <div id="exam-list" style="display: none;"></div>
             </div>
@@ -96,19 +96,26 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
         const adminEmail = "harshavardhanjw@gmail.com";
 
-        // Global State
+        // --- GLOBAL STATE ---
         let CURRENT_ACADEMIC_YEAR = null;
         let allExamsCache = [], subjectsCache = [];
-        let createExamSubjects = {};
+        let createExamSubjects = {}; // Using objects for easier key-based management
         let editExamSubjects = {};
 
-        // DOM Elements
+        // --- DOM ELEMENTS ---
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
         const examListEl = document.getElementById('exam-list');
         const createExamForm = document.getElementById('create-exam-form'), createExamStatusEl = document.getElementById('create-exam-status');
@@ -140,7 +147,7 @@
             document.getElementById('form-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
-        // UI Control
+        // --- UI CONTROL ---
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
@@ -154,7 +161,7 @@
             });
             db.collection('exams').orderBy('createdAt', 'desc').onSnapshot(snap => { 
                 allExamsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderExamList(); // Re-render if data changes, respecting the current class filter.
+                renderExamList(); // Re-render if data changes, respecting the current filter
             });
         }
 
@@ -162,9 +169,19 @@
         function renderExamList() {
             const selectedClass = viewClassSelect.value;
             if (!selectedClass) { examListEl.style.display = 'none'; return; }
+            
             examListEl.style.display = 'block';
-            const examsForClass = allExamsCache.filter(exam => (exam.academicYear === CURRENT_ACADEMIC_YEAR || !exam.academicYear) && Object.keys(exam.marksStructure).some(key => key.startsWith(`CLASS_${selectedClass}_`)));
-            if (examsForClass.length === 0) { examListEl.innerHTML = `<p>No exams have been configured for Class ${selectedClass} in this academic year.</p>`; return; }
+            
+            const examsForClass = allExamsCache.filter(exam => {
+                const isCurrentOrOldYear = exam.academicYear === CURRENT_ACADEMIC_YEAR || !exam.academicYear;
+                const hasSubjectForClass = Object.keys(exam.marksStructure).some(key => key.startsWith(`CLASS_${selectedClass}_`));
+                return isCurrentOrOldYear && hasSubjectForClass;
+            });
+            
+            if (examsForClass.length === 0) {
+                examListEl.innerHTML = `<p>No exams have been configured for Class ${selectedClass} in this academic year.</p>`;
+                return;
+            }
             
             examListEl.innerHTML = examsForClass.map(exam => {
                 const isPublished = exam.published === true;
@@ -172,12 +189,12 @@
                 <div class="item-card ${isPublished ? 'published' : 'draft'}">
                     <div>
                         <p><strong>${exam.examName}</strong></p>
-                        <small>Status: <strong>${isPublished ? 'Published' : 'Draft'}</strong></small>
+                        <small>Status: <strong>${isPublished ? 'Published & Locked' : 'Draft'}</strong></small>
                     </div>
                     <div style="display: flex; align-items: center; gap: 1em;">
                         <span>Publish:</span>
                         <label class="toggle-switch">
-                            <input type="checkbox" class="publish-toggle" data-id="${exam.id}" ${isPublished ? 'checked' : ''}>
+                            <input type="checkbox" data-id="${exam.id}" ${isPublished ? 'checked' : ''}>
                             <span class="slider"></span>
                         </label>
                         <button class="btn btn-sm btn-edit" data-id="${exam.id}">Edit</button>
@@ -191,9 +208,11 @@
         function setupEventListeners() {
             examListEl.addEventListener('click', handleListAction);
             viewClassSelect.addEventListener('change', renderExamList);
+            
             createExamForm.addEventListener('submit', handleCreateExam);
             document.getElementById('create-add-subject-btn').addEventListener('click', () => handleAddSubject('create'));
             document.getElementById('create-exam-class-select').addEventListener('change', () => handleClassChange('create'));
+            document.getElementById('create-exam-marks-list').addEventListener('click', e => { if (e.target.dataset.key) removeSubject('create', e.target.dataset.key); });
         }
 
         function handleListAction(e) {
@@ -201,7 +220,7 @@
             if (!id) return;
             if (e.target.classList.contains('btn-edit')) { openEditExamModal(id); }
             if (e.target.classList.contains('btn-delete')) { handleDelete(id); }
-            if (e.target.classList.contains('publish-toggle')) { handlePublishToggle(id, e.target.checked); }
+            if (e.target.matches('input[type="checkbox"]')) { handlePublishToggle(id, e.target.checked); }
         }
         
         // --- SHARED FORM LOGIC ---
@@ -234,7 +253,7 @@
         }
         function renderMarksList(formType, marksData) {
             const listEl = document.getElementById(`${formType}-exam-marks-list`);
-            listEl.innerHTML = Object.entries(marksData).map(([key, item]) => `<div class="marks-item"><span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span><button type="button" class="btn btn-sm btn-delete" data-key="${key}" onclick="removeSubject('${formType}', '${key}')">Remove</button></div>`).join('');
+            listEl.innerHTML = Object.entries(marksData).map(([key, item]) => `<div class="marks-item"><span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span><button type="button" class="btn btn-sm btn-delete" data-key="${key}">Remove</button></div>`).join('');
         }
 
         // --- CRUD HANDLERS ---
@@ -265,7 +284,7 @@
                         <label>Exam Name:</label><input type="text" id="edit-exam-name" value="${exam.examName}" required>
                         <div class="marks-config ${exam.published ? 'locked' : ''}">
                             <h4>Configure Marks ${exam.published ? '(Locked)' : ''}</h4>
-                            ${exam.published ? '<p><small>Un-publish the exam from the main list to change its subjects and marks.</small></p>' : ''}
+                            ${exam.published ? '<p><small>Un-publish the exam to change its subjects and marks.</small></p>' : ''}
                             <div class="marks-config-controls">
                                 <select id="edit-exam-class-select"><option value="">Class</option></select>
                                 <select id="edit-exam-subject-select" disabled><option value="">Subject</option></select>
@@ -280,29 +299,39 @@
             openModal('edit-exam-modal');
             
             editExamSubjects = {};
-            for(const key in exam.marksStructure) { const [, className, ...subjectParts] = key.split('_'); editExamSubjects[key] = { class: className, subject: subjectParts.join(' ').replace(/_/g, ' '), marks: exam.marksStructure[key] }; }
+            if (exam.marksStructure) {
+                for(const key in exam.marksStructure) {
+                    const [, className, ...subjectParts] = key.split('_');
+                    editExamSubjects[key] = { class: className, subject: subjectParts.join(' ').replace(/_/g, ' '), marks: exam.marksStructure[key] };
+                }
+            }
             
-            populateClassDropdown('edit-exam-class-select');
+            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
+            document.getElementById('edit-exam-class-select').innerHTML = '<option value="">Class</option>' + classOptions;
             renderMarksList('edit', editExamSubjects);
             
             document.getElementById('edit-exam-form').addEventListener('submit', handleUpdateExam);
             document.getElementById('edit-add-subject-btn').addEventListener('click', () => handleAddSubject('edit'));
             document.getElementById('edit-exam-class-select').addEventListener('change', () => handleClassChange('edit'));
+            document.getElementById('edit-exam-marks-list').addEventListener('click', e => { if (e.target.dataset.key) removeSubject('edit', e.target.dataset.key); });
         }
         async function handleUpdateExam(e) {
             e.preventDefault();
             const id = e.target.dataset.id;
-            const exam = allExamsCache.find(ex => ex.id === id);
+            const exam = allExamsCache.find(e => e.id === id);
             const newName = document.getElementById('edit-exam-name').value.trim();
-            let dataToUpdate = { examName: newName };
+            const updateData = { examName: newName };
+            
+            // Only update marks structure if the exam is not published
             if (!exam.published) {
                 const newMarksStructure = {};
                 for (const key in editExamSubjects) { newMarksStructure[key] = editExamSubjects[key].marks; }
-                if (Object.keys(newMarksStructure).length === 0) { alert('An exam must have at least one subject.'); return; }
-                dataToUpdate.marksStructure = newMarksStructure;
+                if (Object.keys(newMarksStructure).length === 0) { alert('An exam must have at least one subject configured.'); return; }
+                updateData.marksStructure = newMarksStructure;
             }
+
             try {
-                await db.collection('exams').doc(id).update(dataToUpdate);
+                await db.collection('exams').doc(id).update(updateData);
                 closeModal('edit-exam-modal');
             } catch (err) { alert(`Error updating exam: ${err.message}`); }
         }
@@ -312,7 +341,7 @@
                 await db.collection('exams').doc(id).update({ published: isPublished });
             } catch(err) {
                 alert(`Error updating status: ${err.message}`);
-                renderExamList();
+                renderExamList(); // Revert toggle on error
             }
         }
 

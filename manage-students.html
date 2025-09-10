@@ -40,7 +40,6 @@
         #pending-dropdown .dropdown-header { padding: 8px 12px; font-weight: bold; color: #7f8c8d; background-color: #f9f9f9; border-bottom: 1px solid #eee; }
         #pending-dropdown .dropdown-item { padding: 10px 12px; cursor: pointer; font-size: 0.9em; }
         #pending-dropdown .dropdown-item:hover { background-color: var(--primary-color); color: white; }
-        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
         .filter-controls { display: grid; grid-template-columns: 1fr 1fr 2fr auto; gap: 1em; margin-bottom: 1.5em; align-items: center; }
         .filter-controls > p { margin: 0; font-size: 0.9em; color: #7f8c8d; white-space: nowrap; text-align: right; }
     </style>
@@ -101,13 +100,12 @@
         const db = firebase.firestore();
         const adminEmail = "harshavardhanjw@gmail.com";
 
-        // Global State
+        // --- GLOBAL STATE ---
         let CURRENT_ACADEMIC_YEAR = null;
-        let allStudentsCache = [], // Stores all students from DB for year filtering
-            studentsCache = [],    // Stores students for the selected year
-            pendingEmailsCache = [];
+        let allStudentsCache = []; // Stores all students from DB, unfiltered. This is our single source of truth.
+        let pendingEmailsCache = [];
 
-        // DOM Elements
+        // --- DOM ELEMENTS ---
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
         const studentListEl = document.getElementById('student-list');
         const editStudentModal = document.getElementById('edit-student-modal');
@@ -116,45 +114,63 @@
         const yearFilterSelect = document.getElementById('year-filter-select'), classFilterSelect = document.getElementById('class-filter-select'), nameSearchInput = document.getElementById('name-search-input'), studentCountDisplay = document.getElementById('student-count-display');
         
         // --- AUTH & INITIALIZATION ---
+        // Checks if user is the logged-in admin. If not, redirects to login page.
         auth.onAuthStateChanged(user => {
-            if (user && user.email === adminEmail) { mainContainer.style.display = 'block'; userEmailEl.textContent = user.email; initializePage(); } 
-            else { window.location.href = 'index.html'; }
+            if (user && user.email === adminEmail) {
+                mainContainer.style.display = 'block';
+                userEmailEl.textContent = user.email;
+                initializePage();
+            } else {
+                window.location.href = 'index.html';
+            }
         });
+
         logoutBtn.onclick = () => auth.signOut();
 
+        // Main function to start the page logic.
         async function initializePage() {
             try {
-                await fetchGlobalSettings();
-                listenForData(); 
-                setupEventListeners(); 
+                await fetchGlobalSettings(); // First get the current year
+                listenForData();             // Then start listening for all data
+                setupEventListeners();       // Finally, activate the UI controls
             } catch (error) {
                 document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ensure you have created the 'settings/global' document in Firestore with a 'currentAcademicYear' field.</p>`;
             }
         }
         
+        // Fetches the single source of truth for the academic year from Firestore.
         async function fetchGlobalSettings() {
             const settingsRef = db.collection('settings').doc('global');
             const doc = await settingsRef.get();
-            if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
+            if (!doc.exists || !doc.data().currentAcademicYear) {
+                throw new Error("Global settings not found or 'currentAcademicYear' is not set.");
+            }
             CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
             document.getElementById('form-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
-        // UI Control
+        // --- UI CONTROL ---
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
-        // Data Listeners
+        // --- DATA LISTENERS ---
         function listenForData() {
+            // Main listener for ALL students. This populates our master cache.
             db.collection('students').orderBy('name').onSnapshot(snap => { 
                 allStudentsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                populateYearFilter();
-                filterAndRenderStudents(); 
+                populateYearFilter();      // Update the year dropdown with all available years
+                filterAndRenderStudents(); // Apply current filters and render the list
             });
-            db.collection('pending_users').onSnapshot(snap => { pendingEmailsCache = snap.docs.map(doc => doc.id); renderPendingDropdown(); });
+            
+            // Listener for users waiting for a role.
+            db.collection('pending_users').onSnapshot(snap => {
+                pendingEmailsCache = snap.docs.map(doc => doc.id);
+                renderPendingDropdown();
+            });
         }
 
         // --- FILTERING & RENDERING LOGIC ---
+        // Populates the year dropdown based on all unique years found in the student data.
         function populateYearFilter() {
             const uniqueYears = [...new Set(allStudentsCache.map(s => s.academicYear).filter(Boolean))];
             if (!uniqueYears.includes(CURRENT_ACADEMIC_YEAR)) {
@@ -164,30 +180,38 @@
             yearFilterSelect.innerHTML = uniqueYears.map(year => `<option value="${year}" ${year === CURRENT_ACADEMIC_YEAR ? 'selected' : ''}>${year}</option>`).join('');
         }
 
+        // This is the core function that applies all active filters to the master list and triggers a re-render.
         function filterAndRenderStudents() {
             const selectedYear = yearFilterSelect.value;
             const classFilter = classFilterSelect.value;
             const nameSearch = nameSearchInput.value.toLowerCase();
             
-            // Filter by selected year first
-            studentsCache = allStudentsCache.filter(s => s.academicYear === selectedYear || (!s.academicYear && selectedYear === getPreviousYear()));
+            // 1. Filter by selected academic year (including backward compatibility for old data).
+            let studentsForYear = allStudentsCache.filter(s => {
+                const studentYear = s.academicYear || getPreviousYear(); // Treat null year as previous year
+                return studentYear === selectedYear;
+            });
 
-            let filteredStudents = studentsCache;
+            let filteredStudents = studentsForYear;
 
-            // If viewing current year, only show active students by default
+            // 2. If viewing the CURRENT year, only show ACTIVE students. For past years, show all.
             if (selectedYear === CURRENT_ACADEMIC_YEAR) {
                 filteredStudents = filteredStudents.filter(s => s.status === 'active' || !s.status);
             }
 
+            // 3. Apply class filter.
             if (classFilter !== 'all') { filteredStudents = filteredStudents.filter(s => s.class == classFilter); }
+            
+            // 4. Apply name search filter.
             if (nameSearch) { filteredStudents = filteredStudents.filter(s => s.name.toLowerCase().includes(nameSearch)); }
 
-            renderStudentList(filteredStudents);
+            renderStudentList(filteredStudents, studentsForYear.length);
         }
 
-        function renderStudentList(studentsToRender) {
+        // Renders the final filtered list of students to the DOM.
+        function renderStudentList(studentsToRender, totalInYear) {
             const selectedYear = yearFilterSelect.value;
-            studentCountDisplay.textContent = `Showing ${studentsToRender.length} students for ${selectedYear}`;
+            studentCountDisplay.textContent = `Showing ${studentsToRender.length} of ${totalInYear} students for ${selectedYear}`;
             if (studentsToRender.length === 0) { studentListEl.innerHTML = `<p>No students match the current filters for ${selectedYear}.</p>`; return; }
 
             studentListEl.innerHTML = studentsToRender.map(s => {
@@ -205,31 +229,68 @@
             }).join('');
         }
         
-        function renderPendingDropdown() { /* ... Unchanged ... */ }
+        // Renders the dropdown for pending emails.
+        function renderPendingDropdown() {
+            if (pendingEmailsCache.length === 0) { pendingDropdown.style.display = 'none'; return; }
+            let html = '<div class="dropdown-header">Pending Mails</div>';
+            pendingEmailsCache.forEach(email => { html += `<div class="dropdown-item" data-email="${email}">${email}</div>`; });
+            pendingDropdown.innerHTML = html;
+        }
         
-        // Event Listeners
+        // --- EVENT LISTENERS ---
         function setupEventListeners() {
+            // Listen for clicks on the entire list for edit/delete actions.
             studentListEl.addEventListener('click', handleListAction);
+            
+            // Listen for form submissions.
             createStudentForm.addEventListener('submit', handleCreateStudent);
             
+            // Listen for any change in the filter controls.
             yearFilterSelect.addEventListener('change', filterAndRenderStudents);
             classFilterSelect.addEventListener('change', filterAndRenderStudents);
             nameSearchInput.addEventListener('input', filterAndRenderStudents);
 
+            // Listeners for the pending email dropdown UI.
             const studentEmailInput = createStudentForm.email;
             studentEmailInput.addEventListener('focus', () => { if (pendingEmailsCache.length > 0) pendingDropdown.style.display = 'block'; });
             document.addEventListener('click', e => { if (!e.target.matches('#create-student-form [name=email]') && !e.target.closest('#pending-dropdown')) { pendingDropdown.style.display = 'none'; } });
             pendingDropdown.addEventListener('click', e => { if (e.target.classList.contains('dropdown-item')) { studentEmailInput.value = e.target.dataset.email; pendingDropdown.style.display = 'none'; } });
         }
 
+        // Handles clicks on "Edit" or "Delete" buttons.
         function handleListAction(e) { const id = e.target.dataset.id; if (!id) return; if (e.target.classList.contains('btn-edit')) { openEditStudentModal(id); } if (e.target.classList.contains('btn-delete')) { handleDelete(id); } }
         
-        // --- CRUD Handlers ---
-        async function handleCreateStudent(e) { /* ... Unchanged ... */ }
+        // --- CRUD HANDLERS ---
         
-        // UPDATE (with new Status field)
+        // CREATE a new student.
+        async function handleCreateStudent(e) {
+            e.preventDefault();
+            createStudentStatusEl.textContent = 'Creating...';
+            const studentData = { name: e.target.name.value.trim(), rollNo: e.target.rollNo.value.trim(), class: Number(e.target.class.value), email: e.target.email.value.trim() || null, academicYear: CURRENT_ACADEMIC_YEAR, status: 'active' };
+            try {
+                const studentEmail = studentData.email;
+                if (studentEmail) { // If email is provided, perform a batch write to ensure data integrity.
+                    const batch = db.batch();
+                    const studentRef = db.collection('students').doc();
+                    batch.set(studentRef, studentData);
+                    batch.set(db.collection('users').doc(studentEmail), { role: 'student' });
+                    batch.delete(db.collection('pending_users').doc(studentEmail));
+                    await batch.commit();
+                } else { // Otherwise, just add the student document.
+                    await db.collection('students').add(studentData);
+                }
+                createStudentStatusEl.textContent = 'Student created successfully!';
+                e.target.reset();
+            } catch (err) {
+                createStudentStatusEl.textContent = `Error: ${err.message}`;
+            } finally {
+                setTimeout(() => createStudentStatusEl.textContent = '', 3000);
+            }
+        }
+        
+        // UPDATE an existing student's details.
         function openEditStudentModal(id) {
-            const student = allStudentsCache.find(s => s.id === id);
+            const student = allStudentsCache.find(s => s.id === id); // Find from the master list
             const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}" ${student.class == (i+1) ? 'selected' : ''}>${i+1}</option>`).join('');
             const statusOptions = ['active', 'Left School', 'graduated'].map(status => `<option value="${status}" ${student.status === status ? 'selected' : ''}>${status}</option>`).join('');
             
@@ -257,30 +318,32 @@
             catch (err) { alert(`Error: ${err.message}`); }
         }
 
-        // DELETE (Now with safe user role deletion)
+        // DELETE a student safely.
         async function handleDelete(id) {
             if (!confirm(`Are you sure you want to delete this student? This action cannot be undone.`)) return;
             const studentToDelete = allStudentsCache.find(s => s.id === id);
             if (!studentToDelete) { alert('Error: Student not found.'); return; }
             try {
-                if (studentToDelete.email) {
+                if (studentToDelete.email) { // If student has an email, also delete their user role.
                     const batch = db.batch();
-                    const studentRef = db.collection('students').doc(id);
-                    const userRef = db.collection('users').doc(studentToDelete.email);
-                    batch.delete(studentRef); batch.delete(userRef);
+                    batch.delete(db.collection('students').doc(id));
+                    batch.delete(db.collection('users').doc(studentToDelete.email));
                     await batch.commit();
                     alert('Student and their user role have been deleted.');
-                } else {
+                } else { // Otherwise, just delete the student document.
                     await db.collection('students').doc(id).delete();
                     alert('Student deleted successfully.');
                 }
             } catch (err) { alert(`Error deleting student: ${err.message}`); }
         }
 
-        // --- UNMODIFIED HELPERS ---
-        function getPreviousYear() { const years = CURRENT_ACADEMIC_YEAR.split('-').map(Number); return `${years[0]-1}-${years[1]-1}`; }
-        function renderPendingDropdown() { if (pendingEmailsCache.length === 0) { pendingDropdown.style.display = 'none'; return; } let html = '<div class="dropdown-header">Pending Mails</div>'; pendingEmailsCache.forEach(email => { html += `<div class="dropdown-item" data-email="${email}">${email}</div>`; }); pendingDropdown.innerHTML = html; }
-        async function handleCreateStudent(e) { e.preventDefault(); createStudentStatusEl.textContent = 'Creating...'; const studentData = { name: e.target.name.value.trim(), rollNo: e.target.rollNo.value.trim(), class: Number(e.target.class.value), email: e.target.email.value.trim() || null, academicYear: CURRENT_ACADEMIC_YEAR, status: 'active' }; try { const studentEmail = studentData.email; if (studentEmail) { const batch = db.batch(); const studentRef = db.collection('students').doc(); batch.set(studentRef, studentData); batch.set(db.collection('users').doc(studentEmail), { role: 'student' }); batch.delete(db.collection('pending_users').doc(studentEmail)); await batch.commit(); } else { await db.collection('students').add(studentData); } createStudentStatusEl.textContent = 'Student created successfully!'; e.target.reset(); } catch (err) { createStudentStatusEl.textContent = `Error: ${err.message}`; } finally { setTimeout(() => createStudentStatusEl.textContent = '', 3000); } }
+        // --- UTILITY ---
+        // Helper function to guess the previous academic year for backward compatibility.
+        function getPreviousYear() {
+            if (!CURRENT_ACADEMIC_YEAR) return '';
+            const years = CURRENT_ACADEMIC_YEAR.split('-').map(Number);
+            return `${years[0]-1}-${years[1]-1}`;
+        }
     </script>
 </body>
 </html>

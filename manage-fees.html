@@ -59,9 +59,13 @@
             <div class="sidebar">
                 <div id="default-fees-section">
                     <h3>Default Fee Structure</h3>
-                    <p><small>Set the standard annual fee for each class.</small></p>
-                    <form id="default-fees-form"></form>
-                    <button id="save-default-fees-btn" class="btn btn-primary" style="width:100%; margin-left:0; margin-top:1em;">Save Default Fees</button>
+                    <p><small>Set the standard fee components for each class.</small></p>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1em;">
+                        <label for="structure-class-select"><strong>Select Class:</strong></label>
+                        <button id="edit-categories-btn" class="btn-sm btn-edit">Edit Categories</button>
+                    </div>
+                    <select id="structure-class-select"><option value="">-- Select Class --</option></select>
+                    <form id="default-fees-form" style="margin-top: 1em;"></form>
                     <p id="default-fees-status"></p>
                 </div>
                 <hr style="margin: 2em 0;">
@@ -76,14 +80,16 @@
                 <div id="reports-dashboard-section">
                     <h2>Financial Dashboard (<span id="current-year-display"></span>)</h2>
                     <div class="dashboard-grid" id="overall-summary-cards"></div>
-                    <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 2em;">
-                        <h3>Class-wise Summary</h3>
-                        <button id="export-summary-btn" class="btn btn-success">Export to CSV</button>
+                    <div id="class-summary-container" style="display: none;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 2em;">
+                            <h3>Class-wise Summary</h3>
+                            <button id="export-summary-btn" class="btn btn-success">Export to CSV</button>
+                        </div>
+                        <table class="report-table" id="class-summary-table">
+                            <thead><tr><th>Class</th><th>Total Students</th><th>Total Fee Expected</th><th>Total Collected</th><th>Total Pending</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
                     </div>
-                    <table class="report-table" id="class-summary-table">
-                        <thead><tr><th>Class</th><th>Total Students</th><th>Total Fee Expected</th><th>Total Collected</th><th>Total Pending</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
                 </div>
 
                 <div id="student-ledger-section" style="display: none;"></div>
@@ -94,6 +100,7 @@
     <!-- Modals -->
     <div id="payment-modal" class="modal"></div>
     <div id="edit-fee-modal" class="modal"></div>
+    <div id="edit-categories-modal" class="modal"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -101,14 +108,7 @@
 
     <script>
         // --- CONFIG & INITIALIZATION ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
-            authDomain: "collage-management-696b3.firebaseapp.com",
-            projectId: "collage-management-696b3",
-            storageBucket: "collage-management-696b3.firebasestorage.app",
-            messagingSenderId: "489625618034",
-            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
-        };
+        const firebaseConfig = { /* Your Config */ };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -117,80 +117,61 @@
         // --- GLOBAL STATE ---
         let CURRENT_ACADEMIC_YEAR = null;
         let studentsCache = [], feeStructuresCache = {};
+        let feeCategories = ["Tuition Fee", "Bus Fee", "Books & Supplies"]; // Default
 
         // --- DOM ELEMENTS ---
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
-        const defaultFeesFormEl = document.getElementById('default-fees-form'), saveDefaultFeesBtn = document.getElementById('save-default-fees-btn'), defaultFeesStatusEl = document.getElementById('default-fees-status');
+        const defaultFeesFormEl = document.getElementById('default-fees-form'), defaultFeesStatusEl = document.getElementById('default-fees-status');
+        const structureClassSelect = document.getElementById('structure-class-select');
         const ledgerClassSelect = document.getElementById('ledger-class-select'), ledgerStudentSelect = document.getElementById('ledger-student-select');
         const reportsDashboardSection = document.getElementById('reports-dashboard-section'), studentLedgerSection = document.getElementById('student-ledger-section');
         const overallSummaryCardsEl = document.getElementById('overall-summary-cards'), classSummaryTableBody = document.querySelector('#class-summary-table tbody'), exportSummaryBtn = document.getElementById('export-summary-btn');
-        const paymentModal = document.getElementById('payment-modal'), editFeeModal = document.getElementById('edit-fee-modal');
+        const paymentModal = document.getElementById('payment-modal'), editFeeModal = document.getElementById('edit-fee-modal'), editCategoriesModal = document.getElementById('edit-categories-modal');
         
         // --- AUTHENTICATION & PAGE SETUP ---
         auth.onAuthStateChanged(async user => {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.email).get();
                 if (user.email === adminEmail || (userDoc.exists && userDoc.data().role === 'accountant')) {
-                    mainContainer.style.display = 'block';
-                    userEmailEl.textContent = user.email;
+                    mainContainer.style.display = 'block'; userEmailEl.textContent = user.email;
                     await initializePage();
-                } else {
-                    handleAuthError('Access Denied. You do not have permissions to manage fees.');
-                }
-            } else {
-                window.location.href = 'index.html';
-            }
+                } else { handleAuthError('Access Denied. You do not have permissions to manage fees.'); }
+            } else { window.location.href = 'index.html'; }
         });
-
-        function handleAuthError(message) {
-            alert(message);
-            auth.signOut().then(() => window.location.href = 'index.html');
-        }
-
+        function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
         logoutBtn.onclick = () => auth.signOut();
 
-        // ** CRITICAL FIX **: The main initialization logic is now fully sequential to prevent race conditions and loading errors.
         async function initializePage() {
             try {
-                await fetchGlobalSettings();       // 1. MUST wait for global settings first.
-                await listenForFeeStructures();    // 2. MUST wait for fee structures to load.
-                await listenForStudents();         // 3. MUST wait for all students to load.
-                populateClassDropdowns();          // 4. Now it's safe to build the UI.
-                renderDefaultFeesForm();           // 5. Build the default fees form.
-                calculateAndDisplayReports();      // 6. Calculate summaries with all data present.
-                setupEventListeners();             // 7. Finally, activate all buttons and controls.
-            } catch (error) {
-                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p>`;
-            }
+                await fetchGlobalSettings();
+                await listenForFeeStructures();
+                await listenForStudents();
+                populateClassDropdowns();
+                calculateAndDisplayReports();
+                setupEventListeners();
+            } catch (error) { document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p>`; }
         }
         
-        // Fetches the single source of truth for the academic year from Firestore.
         async function fetchGlobalSettings() {
             const settingsRef = db.collection('settings').doc('global');
             const doc = await settingsRef.get();
             if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
             CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            if (doc.data().feeCategories && doc.data().feeCategories.length > 0) { feeCategories = doc.data().feeCategories; }
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
         // --- UI CONTROL & DROPDOWNS ---
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
-        function populateClassDropdowns() {
-            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-            ledgerClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
-        }
+        function populateClassDropdowns() { const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join(''); ledgerClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; structureClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; }
 
         // --- DATA LISTENERS ---
-        // These now use real-time listeners for a more dynamic experience.
         function listenForStudents() {
             return new Promise(resolve => {
                 db.collection('students').onSnapshot(snap => {
                     studentsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    // If a student ledger is currently open, refresh its data.
-                    if (ledgerStudentSelect.value) {
-                        renderStudentLedger(ledgerStudentSelect.value);
-                    }
+                    if (ledgerStudentSelect.value) { renderStudentLedger(ledgerStudentSelect.value); }
                     calculateAndDisplayReports();
                     resolve();
                 });
@@ -201,7 +182,7 @@
                 db.collection('feeStructures').onSnapshot(snap => {
                     feeStructuresCache = {};
                     snap.forEach(doc => { feeStructuresCache[doc.id] = doc.data(); });
-                    renderDefaultFeesForm();
+                    if (structureClassSelect.value) { renderDefaultFeesForm(structureClassSelect.value); }
                     calculateAndDisplayReports();
                     resolve();
                 });
@@ -210,7 +191,9 @@
         
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            saveDefaultFeesBtn.addEventListener('click', handleSaveDefaultFees);
+            structureClassSelect.addEventListener('change', e => renderDefaultFeesForm(e.target.value));
+            document.getElementById('save-default-fees-btn').addEventListener('click', handleSaveDefaultFees);
+            document.getElementById('edit-categories-btn').addEventListener('click', openEditCategoriesModal);
             ledgerClassSelect.addEventListener('change', populateStudentDropdown);
             ledgerStudentSelect.addEventListener('change', e => {
                 if (e.target.value) {
@@ -226,35 +209,31 @@
         }
 
         // --- CORE FEE MANAGEMENT LOGIC ---
-        // Renders the form for setting default fees for each class.
-        function renderDefaultFeesForm() {
+        function renderDefaultFeesForm(selectedClass) {
+            defaultFeesFormEl.innerHTML = '';
+            if (!selectedClass) return;
+            const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
+            const structure = feeStructuresCache[docId] || { fees: {} };
             let formHtml = '';
-            for (let i = 1; i <= 10; i++) {
-                const docId = `CLASS_${i}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
-                const amount = feeStructuresCache[docId] ? feeStructuresCache[docId].total : '';
-                formHtml += `<label>Class ${i}:</label><input type="number" data-class="${i}" value="${amount}" placeholder="Default Fee Amount">`;
-            }
+            feeCategories.forEach(cat => {
+                const amount = structure.fees[cat] || 0;
+                formHtml += `<label>${cat}:</label><input type="number" data-category="${cat}" value="${amount}" placeholder="Amount">`;
+            });
             defaultFeesFormEl.innerHTML = formHtml;
         }
         
-        // Saves the default fee structures for all classes.
         async function handleSaveDefaultFees() {
+            const selectedClass = structureClassSelect.value;
+            if (!selectedClass) { alert('Please select a class first.'); return; }
             defaultFeesStatusEl.textContent = 'Saving...';
-            const batch = db.batch();
-            defaultFeesFormEl.querySelectorAll('input').forEach(input => {
-                const className = input.dataset.class;
-                const amount = Number(input.value) || 0;
-                const docId = `CLASS_${className}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
-                const structureRef = db.collection('feeStructures').doc(docId);
-                // Simple structure for default fees.
-                batch.set(structureRef, { className, academicYear: CURRENT_ACADEMIC_YEAR, total: amount, fees: { 'Annual Fee': amount } });
-            });
-            try { await batch.commit(); defaultFeesStatusEl.textContent = 'Default fees saved successfully!'; }
+            const fees = {}; let total = 0;
+            defaultFeesFormEl.querySelectorAll('input').forEach(input => { const amount = Number(input.value) || 0; fees[input.dataset.category] = amount; total += amount; });
+            const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
+            try { await db.collection('feeStructures').doc(docId).set({ className: selectedClass, academicYear: CURRENT_ACADEMIC_YEAR, fees, total }); defaultFeesStatusEl.textContent = 'Fees saved!'; }
             catch (err) { defaultFeesStatusEl.textContent = `Error: ${err.message}`; }
             finally { setTimeout(() => defaultFeesStatusEl.textContent = '', 3000); }
         }
         
-        // Populates the student dropdown based on selected class.
         function populateStudentDropdown() {
             const selectedClass = ledgerClassSelect.value;
             ledgerStudentSelect.innerHTML = '<option value="">-- Select Student --</option>';
@@ -266,103 +245,57 @@
             ledgerStudentSelect.disabled = false;
         }
 
-        // Renders the complete financial ledger for a single student.
         function renderStudentLedger(studentId) {
             const student = studentsCache.find(s => s.id === studentId);
             if (!student) { studentLedgerSection.innerHTML = '<p>Student not found.</p>'; return; }
-            
             const defaultFeeDocId = `CLASS_${student.class}_YEAR_${student.academicYear}`;
             const assignedFee = student.totalFee !== undefined ? student.totalFee : (feeStructuresCache[defaultFeeDocId] ? feeStructuresCache[defaultFeeDocId].total : 0);
             const paymentHistory = student.paymentHistory || [];
             const totalPaid = paymentHistory.reduce((sum, p) => sum + p.amountPaid, 0);
             const pendingAmount = assignedFee - totalPaid;
-            
             let historyHtml = 'No payments recorded.';
             if (paymentHistory.length > 0) {
-                historyHtml = `<table class="report-table"><thead><tr><th>Date</th><th>Amount Paid</th><th>Mode</th><th>Notes</th><th>Actions</th></tr></thead><tbody>`;
-                paymentHistory.forEach(p => {
-                    historyHtml += `<tr><td>${p.date.toDate().toLocaleDateString()}</td><td>₹${p.amountPaid.toFixed(2)}</td><td>${p.mode}</td><td>${p.notes || ''}</td><td><button class="btn-delete btn-sm" onclick="handleDeletePayment('${student.id}', '${p.paymentId}')">Delete</button></td></tr>`;
-                });
+                historyHtml = `<table class="report-table"><thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Notes</th><th></th></tr></thead><tbody>`;
+                paymentHistory.forEach(p => { historyHtml += `<tr><td>${p.date.toDate().toLocaleDateString()}</td><td>₹${p.amountPaid.toFixed(2)}</td><td>${p.mode}</td><td>${p.notes || ''}</td><td style="text-align:right;"><button class="btn-delete btn-sm" onclick="handleDeletePayment('${student.id}', '${p.paymentId}')">X</button></td></tr>`; });
                 historyHtml += `</tbody></table>`;
             }
-
-            studentLedgerSection.innerHTML = `
-                <div class="student-ledger-header">
-                    <h3>Ledger for ${student.name}</h3>
-                    <button class="btn btn-sm btn-edit" onclick="openEditStudentFeeModal('${student.id}')">Edit Assigned Fee</button>
-                </div>
-                <div class="dashboard-grid">
-                    <div class="stat-card"><span class="label">Total Assigned Fee</span><span class="value">₹${assignedFee.toLocaleString()}</span></div>
-                    <div class="stat-card"><span class="label">Total Paid</span><span class="value" style="color:var(--success-color);">₹${totalPaid.toLocaleString()}</span></div>
-                    <div class="stat-card"><span class="label">Pending Amount</span><span class="value" style="color:var(--danger-color);">₹${pendingAmount.toLocaleString()}</span></div>
-                </div>
-                <hr style="margin: 2em 0;">
-                <h3>Add New Payment</h3>
-                <form id="add-payment-form" data-student-id="${student.id}">
-                    <input type="number" name="amount" placeholder="Amount Paid" required min="1" max="${pendingAmount > 0 ? pendingAmount : 1}">
-                    <select name="mode"><option>Cash</option><option>Online</option><option>UPI</option><option>Bank Transfer</option></select>
-                    <textarea name="notes" placeholder="Transaction ID or notes (optional)"></textarea>
-                    <button type="submit" class="btn-success" style="margin-left:0;">Add Payment</button>
-                </form>
-                <hr style="margin: 2em 0;">
-                <h3>Payment History</h3>
-                ${historyHtml}
-            `;
+            studentLedgerSection.innerHTML = `<div class="student-ledger-header"><h3>Ledger for ${student.name}</h3><button class="btn btn-sm btn-edit" onclick="openEditStudentFeeModal('${student.id}')">Edit Assigned Fee</button></div><div class="dashboard-grid"><div class="stat-card"><span class="label">Total Assigned Fee</span><span class="value">₹${assignedFee.toLocaleString()}</span></div><div class="stat-card"><span class="label">Total Paid</span><span class="value" style="color:var(--success-color);">₹${totalPaid.toLocaleString()}</span></div><div class="stat-card"><span class="label">Pending Amount</span><span class="value" style="color:var(--danger-color);">₹${pendingAmount.toLocaleString()}</span></div></div><hr style="margin:2em 0"><h3>Add New Payment</h3><form id="add-payment-form" data-student-id="${student.id}"><input type="number" name="amount" placeholder="Amount Paid" required min="1" max="${pendingAmount > 0 ? pendingAmount : 1}"><select name="mode"><option>Cash</option><option>Online</option><option>UPI</option><option>Bank Transfer</option></select><textarea name="notes" placeholder="Transaction ID or notes (optional)"></textarea><button type="submit" class="btn-success" style="margin-left:0;">Add Payment</button></form><hr style="margin:2em 0"><h3>Payment History</h3>${historyHtml}`;
             document.getElementById('add-payment-form').addEventListener('submit', handleAddPayment);
         }
         
-        // --- CRUD for Individual Student Fees & Payments ---
         function openEditStudentFeeModal(studentId) {
             const student = studentsCache.find(s => s.id === studentId);
             const defaultFeeDocId = `CLASS_${student.class}_YEAR_${student.academicYear}`;
-            const assignedFee = student.totalFee !== undefined ? student.totalFee : (feeStructuresCache[defaultFeeDocId] ? feeStructuresCache[defaultFeeDocId].total : 0);
-            editFeeModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-fee-modal')">&times;</span><h2>Edit Assigned Fee for ${student.name}</h2><p>Default for Class ${student.class} is ₹${(feeStructuresCache[defaultFeeDocId]?.total || 0).toLocaleString()}</p><form id="edit-student-fee-form" data-student-id="${studentId}"><label>Custom Total Fee Amount:</label><input type="number" name="totalFee" value="${assignedFee}" required><button type="submit">Save Custom Fee</button></form></div>`;
+            const defaultStructure = feeStructuresCache[defaultFeeDocId] || { fees: {}, total: 0 };
+            const studentFeeDetails = student.feeDetails || defaultStructure.fees;
+            let formHtml = '';
+            feeCategories.forEach(cat => {
+                const value = studentFeeDetails[cat] !== undefined ? studentFeeDetails[cat] : (defaultStructure.fees[cat] || 0);
+                formHtml += `<label>${cat}:</label><input type="number" data-category="${cat}" value="${value}">`;
+            });
+            editFeeModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-fee-modal')">&times;</span><h2>Edit Fee for ${student.name}</h2><form id="edit-student-fee-form" data-student-id="${studentId}">${formHtml}<button type="submit">Save Custom Fee</button></form></div>`;
             openModal('edit-fee-modal');
             document.getElementById('edit-student-fee-form').addEventListener('submit', handleUpdateStudentFee);
         }
+
         async function handleUpdateStudentFee(e) {
             e.preventDefault();
             const studentId = e.target.dataset.studentId;
-            const newTotalFee = Number(e.target.totalFee.value);
-            try {
-                await db.collection('students').doc(studentId).update({ totalFee: newTotalFee });
-                closeModal('edit-fee-modal');
-            } catch(err) { alert(`Error: ${err.message}`); }
+            const feeDetails = {}; let totalFee = 0;
+            e.target.querySelectorAll('input').forEach(input => {
+                const amount = Number(input.value) || 0;
+                feeDetails[input.dataset.category] = amount;
+                totalFee += amount;
+            });
+            try { await db.collection('students').doc(studentId).update({ feeDetails, totalFee }); closeModal('edit-fee-modal'); } 
+            catch(err) { alert(`Error: ${err.message}`); }
         }
-        async function handleAddPayment(e) {
-            e.preventDefault();
-            const studentId = e.target.dataset.studentId;
-            const form = e.target;
-            const newPayment = {
-                paymentId: Date.now().toString(),
-                amountPaid: Number(form.amount.value),
-                mode: form.mode.value,
-                date: new Date(),
-                notes: form.notes.value.trim()
-            };
-            try {
-                await db.collection('students').doc(studentId).update({
-                    paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment)
-                });
-                form.reset();
-            } catch(err) { alert(`Error: ${err.message}`); }
-        }
-        async function handleDeletePayment(studentId, paymentId) {
-            if (!confirm("Are you sure you want to delete this payment record? This action cannot be undone.")) return;
-            const studentRef = db.collection('students').doc(studentId);
-            const student = studentsCache.find(s => s.id === studentId);
-            const paymentToDelete = student.paymentHistory.find(p => p.paymentId === paymentId);
-            if (!paymentToDelete) { alert('Error: Could not find payment to delete.'); return; }
-            try {
-                await studentRef.update({
-                    paymentHistory: firebase.firestore.FieldValue.arrayRemove(paymentToDelete)
-                });
-            } catch(err) { alert(`Error: ${err.message}`); }
-        }
+        async function handleAddPayment(e) { /* ... Unchanged ... */ }
+        async function handleDeletePayment(studentId, paymentId) { /* ... Unchanged ... */ }
 
-        // --- REPORTING LOGIC ---
         function calculateAndDisplayReports() {
             if (studentsCache.length === 0) return;
+            document.getElementById('class-summary-container').style.display = 'block';
             const studentsForYear = studentsCache.filter(s => s.academicYear === CURRENT_ACADEMIC_YEAR && s.status === 'active');
             let overallExpected = 0, overallCollected = 0;
             const classSummaries = {};
@@ -371,31 +304,22 @@
                 const defaultFeeDocId = `CLASS_${student.class}_YEAR_${student.academicYear}`;
                 const assignedFee = student.totalFee !== undefined ? student.totalFee : (feeStructuresCache[defaultFeeDocId] ? feeStructuresCache[defaultFeeDocId].total : 0);
                 const totalPaid = (student.paymentHistory || []).reduce((sum, p) => sum + p.amountPaid, 0);
-                overallExpected += assignedFee;
-                overallCollected += totalPaid;
-                if (classSummaries[student.class]) {
-                    classSummaries[student.class].studentCount++;
-                    classSummaries[student.class].expected += assignedFee;
-                    classSummaries[student.class].collected += totalPaid;
-                }
+                overallExpected += assignedFee; overallCollected += totalPaid;
+                if (classSummaries[student.class]) { classSummaries[student.class].studentCount++; classSummaries[student.class].expected += assignedFee; classSummaries[student.class].collected += totalPaid; }
             });
-            overallSummaryCardsEl.innerHTML = `
-                <div class="stat-card"><span class="label">Total Fee Expected</span><span class="value">₹${overallExpected.toLocaleString()}</span></div>
-                <div class="stat-card"><span class="label">Total Fee Collected</span><span class="value" style="color:var(--success-color);">₹${overallCollected.toLocaleString()}</span></div>
-                <div class="stat-card"><span class="label">Total Pending</span><span class="value" style="color:var(--danger-color);">₹${(overallExpected - overallCollected).toLocaleString()}</span></div>`;
+            overallSummaryCardsEl.innerHTML = `<div class="stat-card"><span class="label">Total Fee Expected</span><span class="value">₹${overallExpected.toLocaleString()}</span></div><div class="stat-card"><span class="label">Total Fee Collected</span><span class="value" style="color:var(--success-color);">₹${overallCollected.toLocaleString()}</span></div><div class="stat-card"><span class="label">Total Pending</span><span class="value" style="color:var(--danger-color);">₹${(overallExpected - overallCollected).toLocaleString()}</span></div>`;
             let tableHtml = '';
             for (let i = 1; i <= 10; i++) {
-                const summary = classSummaries[i];
-                const pending = summary.expected - summary.collected;
+                const summary = classSummaries[i]; const pending = summary.expected - summary.collected;
                 tableHtml += `<tr><td>Class ${i}</td><td>${summary.studentCount}</td><td>₹${summary.expected.toLocaleString()}</td><td>₹${summary.collected.toLocaleString()}</td><td>₹${pending.toLocaleString()}</td></tr>`;
             }
             classSummaryTableBody.innerHTML = tableHtml;
         }
-        function exportToCSV(tableId, filename) {
-            const table = document.getElementById(tableId); if (!table) return; let csv = []; const rows = table.querySelectorAll("tr");
-            for (const row of rows) { const cols = row.querySelectorAll("td, th"); const rowData = []; for (const col of cols) { let data = col.innerText.replace(/"/g, '""'); if (data.includes(',')) data = `"${data}"`; rowData.push(data); } csv.push(rowData.join(",")); }
-            const csvFile = new Blob([csv.join("\n")], {type: "text/csv"}); const link = document.createElement("a"); link.download = filename; link.href = window.URL.createObjectURL(csvFile); document.body.appendChild(link); link.click(); document.body.removeChild(link);
-        }
+
+        // --- UNMODIFIED HELPERS ---
+        function exportToCSV(tableId, filename) { const table = document.getElementById(tableId); if (!table) return; let csv = []; const rows = table.querySelectorAll("tr"); for (const row of rows) { const cols = row.querySelectorAll("td, th"); const rowData = []; for (const col of cols) { let data = col.innerText.replace(/"/g, '""'); if (data.includes(',')) data = `"${data}"`; rowData.push(data); } csv.push(rowData.join(",")); } const csvFile = new Blob([csv.join("\n")], {type: "text/csv"}); const link = document.createElement("a"); link.download = filename; link.href = window.URL.createObjectURL(csvFile); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
+        async function handleAddPayment(e) { e.preventDefault(); const studentId = e.target.dataset.studentId; const form = e.target; const newPayment = { paymentId: Date.now().toString(), amountPaid: Number(form.amount.value), mode: form.mode.value, date: new Date(), notes: form.notes.value.trim() }; try { await db.collection('students').doc(studentId).update({ paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) }); form.reset(); } catch(err) { alert(`Error: ${err.message}`); } }
+        async function handleDeletePayment(studentId, paymentId) { if (!confirm("Are you sure you want to delete this payment record? This action cannot be undone.")) return; const studentRef = db.collection('students').doc(studentId); const student = studentsCache.find(s => s.id === studentId); const paymentToDelete = student.paymentHistory.find(p => p.paymentId === paymentId); if (!paymentToDelete) { alert('Error: Could not find payment to delete.'); return; } try { await studentRef.update({ paymentHistory: firebase.firestore.FieldValue.arrayRemove(paymentToDelete) }); } catch(err) { alert(`Error: ${err.message}`); } }
     </script>
 </body>
 </html>

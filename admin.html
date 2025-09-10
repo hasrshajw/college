@@ -30,7 +30,7 @@
             margin-top: 2em;
         }
         .dashboard-card {
-            display: flex; /* Changed for better alignment */
+            display: flex;
             flex-direction: column;
             justify-content: space-between;
             background-color: white;
@@ -52,7 +52,7 @@
             color: #7f8c8d;
             font-size: 0.9em;
             line-height: 1.5;
-            flex-grow: 1; /* Pushes stat to the bottom */
+            flex-grow: 1;
         }
         .card-stat {
             font-size: 2.5em;
@@ -77,13 +77,14 @@
         <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
         
         <div class="dashboard-grid">
+            <!-- Row 1 -->
             <a href="manage-students.html" class="dashboard-card">
                 <div>
                     <div class="card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                         <h2>Students</h2>
                     </div>
-                    <p>Create, edit, and manage student profiles for the current academic year.</p>
+                    <p>Manage active student profiles for the current academic year.</p>
                 </div>
                 <div class="card-stat" id="student-count">...</div>
             </a>
@@ -93,7 +94,7 @@
                          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                         <h2>Teachers</h2>
                     </div>
-                    <p>Add new teachers, update their details, and manage their system access roles.</p>
+                    <p>Add new teachers, update their details, and manage system roles.</p>
                 </div>
                 <div class="card-stat" id="teacher-count">...</div>
             </a>
@@ -103,7 +104,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
                         <h2>Subjects</h2>
                     </div>
-                    <p>Define subjects for each class and assign teachers for the current academic year.</p>
+                    <p>Define subjects for each class and assign teachers for the current year.</p>
                 </div>
                 <div class="card-stat" id="subject-count">...</div>
             </a>
@@ -113,10 +114,12 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         <h2>Exams</h2>
                     </div>
-                    <p>Create exam units and configure the maximum marks for each subject.</p>
+                    <p>Create and edit exam units and configure their marks structure.</p>
                 </div>
                 <div class="card-stat" id="exam-count">...</div>
             </a>
+
+            <!-- Row 2 - New Navigation Links -->
             <a href="manage-timetables.html" class="dashboard-card">
                  <div>
                     <div class="card-header">
@@ -133,9 +136,9 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
                         <h2>Notices</h2>
                     </div>
-                    <p>Publish and manage school-wide announcements for students and teachers.</p>
+                    <p>Publish school-wide announcements for students and teachers.</p>
                 </div>
-                 <div class="card-stat">Manage</div>
+                 <div class="card-stat" id="notice-count">...</div>
             </a>
             <a href="reports.html" class="dashboard-card">
                 <div>
@@ -143,7 +146,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17l5.29-5.29a2 2 0 0 1 2.83 0L14 15.41a2 2 0 0 0 2.83 0L22 10"></path><path d="M12 22V2"></path></svg>
                         <h2>Reports</h2>
                     </div>
-                    <p>Generate consolidated mark sheets and monthly attendance reports.</p>
+                    <p>Generate mark sheets, attendance reports, and student report cards.</p>
                 </div>
                  <div class="card-stat">View</div>
             </a>
@@ -151,11 +154,31 @@
                 <div>
                     <div class="card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                        <h2>Admin Tools</h2>
+                        <h2>System Tools</h2>
                     </div>
                     <p>Perform critical operations like year-end promotion and bulk data imports.</p>
                 </div>
-                 <div class="card-stat"><span class="subtext">System</span>Tools</div>
+                 <div class="card-stat"><span class="subtext">Advanced</span>Tools</div>
+            </a>
+            <a href="archived-students.html" class="dashboard-card">
+                 <div>
+                    <div class="card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        <h2>Archives</h2>
+                    </div>
+                    <p>View records of students who have graduated or left the school.</p>
+                </div>
+                 <div class="card-stat" id="archived-count">...</div>
+            </a>
+             <a href="manage-settings.html" class="dashboard-card">
+                 <div>
+                    <div class="card-header">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+                        <h2>Settings</h2>
+                    </div>
+                    <p>Configure the academic year, grading policies, and school information.</p>
+                </div>
+                 <div class="card-stat">Configure</div>
             </a>
         </div>
     </div>
@@ -204,7 +227,7 @@
         async function initializeDashboard() {
             try {
                 await fetchGlobalSettings();
-                fetchDashboardStats(); // No need to await, let it run in the background
+                fetchDashboardStats();
             } catch (error) {
                 document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ensure you have created the 'settings/global' document in Firestore with a 'currentAcademicYear' field.</p>`;
             }
@@ -223,21 +246,29 @@
         
         async function fetchDashboardStats() {
             if (!CURRENT_ACADEMIC_YEAR) return;
+
             const studentCountEl = document.getElementById('student-count');
             const teacherCountEl = document.getElementById('teacher-count');
             const subjectCountEl = document.getElementById('subject-count');
             const examCountEl = document.getElementById('exam-count');
+            const noticeCountEl = document.getElementById('notice-count');
+            const archivedCountEl = document.getElementById('archived-count');
 
             try {
-                const [studentSnap, teacherSnap, subjectSnap, examSnap] = await Promise.all([
-                    db.collection('students').where('status', '==', 'active').get(),
+                const [studentSnap, teacherSnap, subjectSnap, examSnap, noticeSnap, archivedSnap] = await Promise.all([
+                    db.collection('students').get(), // Get all students for accurate filtering
                     db.collection('teachers').get(),
-                    db.collection('subjects').get(),
-                    db.collection('exams').get()
+                    db.collection('subjects').get(), // Get all subjects for filtering
+                    db.collection('exams').get(),    // Get all exams for filtering
+                    db.collection('notices').get(),
+                    db.collection('students').where('status', 'in', ['graduated', 'Left School']).get()
                 ]);
 
-                // Filter in JS for backward compatibility
-                const activeStudents = studentSnap.docs.filter(doc => !doc.data().academicYear || doc.data().academicYear === CURRENT_ACADEMIC_YEAR);
+                // Filter in JS for backward compatibility and accuracy
+                const activeStudents = studentSnap.docs.filter(doc => {
+                    const data = doc.data();
+                    return (data.status === 'active' || !data.status) && (!data.academicYear || data.academicYear === CURRENT_ACADEMIC_YEAR);
+                });
                 const currentSubjects = subjectSnap.docs.filter(doc => !doc.data().academicYear || doc.data().academicYear === CURRENT_ACADEMIC_YEAR);
                 const currentExams = examSnap.docs.filter(doc => !doc.data().academicYear || doc.data().academicYear === CURRENT_ACADEMIC_YEAR);
 
@@ -245,13 +276,13 @@
                 teacherCountEl.textContent = teacherSnap.size;
                 subjectCountEl.textContent = currentSubjects.length;
                 examCountEl.textContent = currentExams.length;
+                noticeCountEl.textContent = noticeSnap.size;
+                archivedCountEl.textContent = archivedSnap.size;
 
             } catch (error) {
                 console.error("Error fetching dashboard stats:", error);
-                studentCountEl.textContent = 'Error';
-                teacherCountEl.textContent = 'Error';
-                subjectCountEl.textContent = 'Error';
-                examCountEl.textContent = 'Error';
+                // Display error state on cards
+                [studentCountEl, teacherCountEl, subjectCountEl, examCountEl, noticeCountEl, archivedCountEl].forEach(el => el.textContent = 'Error');
             }
         }
     </script>

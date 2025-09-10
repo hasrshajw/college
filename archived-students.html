@@ -68,53 +68,79 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
         const adminEmail = "harshavardhanjw@gmail.com";
 
-        // Global State
-        let archivedStudentsCache = [];
+        // --- GLOBAL STATE ---
+        let archivedStudentsCache = []; // This will store the master list of archived students.
 
-        // DOM Elements
+        // --- DOM ELEMENTS ---
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
         const studentListEl = document.getElementById('student-list');
         const editStudentModal = document.getElementById('edit-student-modal');
         const statusFilterSelect = document.getElementById('status-filter-select'), yearFilterSelect = document.getElementById('year-filter-select'), nameSearchInput = document.getElementById('name-search-input'), studentCountDisplay = document.getElementById('student-count-display');
         
         // --- AUTH & INITIALIZATION ---
+        // Checks if the user is the logged-in admin. If not, they are redirected.
         auth.onAuthStateChanged(user => {
-            if (user && user.email === adminEmail) { mainContainer.style.display = 'block'; userEmailEl.textContent = user.email; initializePage(); } 
-            else { window.location.href = 'index.html'; }
+            if (user && user.email === adminEmail) {
+                mainContainer.style.display = 'block';
+                userEmailEl.textContent = user.email;
+                initializePage();
+            } else {
+                window.location.href = 'index.html';
+            }
         });
+
+        // Handles user logout.
         logoutBtn.onclick = () => auth.signOut();
 
+        // Main function to start the page logic.
         function initializePage() {
             listenForArchivedStudents();
             setupEventListeners();
         }
         
-        // UI Control
+        // --- UI CONTROL ---
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
-        // Data Listener
+        // --- DATA LISTENER (WITH THE FIX) ---
+        // This function now correctly fetches and then sorts the data.
         function listenForArchivedStudents() {
-            db.collection('students').where('status', 'in', ['graduated', 'Left School']).orderBy('name').onSnapshot(snap => { 
-                archivedStudentsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // This query is now valid as it does not combine an inequality filter with a different orderBy field.
+            db.collection('students').where('status', 'in', ['graduated', 'Left School']).onSnapshot(snap => { 
+                // Map the documents from Firestore.
+                const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                // ** THE FIX **: Sort the data here in JavaScript, not in the query.
+                archivedStudentsCache = docs.sort((a, b) => a.name.localeCompare(b.name));
+                
+                // Now proceed with the UI updates.
                 populateYearFilter();
                 filterAndRenderStudents(); 
             });
         }
 
         // --- FILTERING & RENDERING LOGIC ---
+        // Populates the year dropdown based on all unique years found in the archived student data.
         function populateYearFilter() {
             const uniqueYears = [...new Set(archivedStudentsCache.map(s => s.academicYear).filter(Boolean))];
             uniqueYears.sort().reverse();
             yearFilterSelect.innerHTML = '<option value="all">All Years</option>' + uniqueYears.map(year => `<option value="${year}">${year}</option>`).join('');
         }
 
+        // This is the core function that applies all active filters to the master list and triggers a re-render.
         function filterAndRenderStudents() {
             const statusFilter = statusFilterSelect.value;
             const yearFilter = yearFilterSelect.value;
@@ -129,6 +155,7 @@
             renderStudentList(filteredStudents);
         }
 
+        // Renders the final filtered list of students to the DOM.
         function renderStudentList(studentsToRender) {
             studentCountDisplay.textContent = `Showing ${studentsToRender.length} records`;
             if (studentsToRender.length === 0) {
@@ -147,7 +174,7 @@
                 </div>`).join('');
         }
         
-        // Event Listeners
+        // --- EVENT LISTENERS ---
         function setupEventListeners() {
             studentListEl.addEventListener('click', handleListAction);
             statusFilterSelect.addEventListener('change', filterAndRenderStudents);
@@ -155,6 +182,7 @@
             nameSearchInput.addEventListener('input', filterAndRenderStudents);
         }
 
+        // Handles clicks on the "Edit Status" button.
         function handleListAction(e) {
             const id = e.target.dataset.id;
             if (!id) return;
@@ -163,7 +191,8 @@
             }
         }
         
-        // --- UPDATE HANDLER ---
+        // --- UPDATE HANDLER (FOR RE-ACTIVATION) ---
+        // Opens the modal to change a student's status.
         function openEditStudentModal(id) {
             const student = archivedStudentsCache.find(s => s.id === id);
             const statusOptions = ['graduated', 'Left School', 'active'].map(status => `<option value="${status}" ${student.status === status ? 'selected' : ''}>${status}</option>`).join('');
@@ -180,10 +209,11 @@
                     </form>
                 </div>`;
             openModal('edit-student-modal');
-            document.getElementById('edit-student-form').addEventListener('submit', handleUpdateStudent);
+            document.getElementById('edit-student-form').addEventListener('submit', handleUpdateStudentStatus);
         }
         
-        async function handleUpdateStudent(e) {
+        // Commits the status change to Firestore.
+        async function handleUpdateStudentStatus(e) {
             e.preventDefault();
             const id = e.target.dataset.id;
             const newStatus = e.target.status.value;
@@ -191,7 +221,7 @@
             try {
                 await db.collection('students').doc(id).update({ status: newStatus });
                 closeModal('edit-student-modal');
-                // The real-time listener will automatically refresh the list
+                // The real-time listener will automatically refresh the list, removing the student if they become 'Active'.
             } catch (err) {
                 alert(`Error updating status: ${err.message}`);
             }

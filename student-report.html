@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Progress Report</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .controls {
+            width: 95%; max-width: 800px; margin-bottom: 1em; text-align: right;
+        }
+        .btn { border: none; padding: 10px 18px; font-size: 16px; border-radius: 4px; cursor: pointer; color: white; }
+        .btn-primary { background-color: var(--primary-color); }
+        .report-card {
+            width: 210mm; /* A4 width */
+            min-height: 297mm; /* A4 height */
+            padding: 1in;
+            background: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-sizing: border-box;
+        }
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--dark-text);
+            padding-bottom: 1em;
+        }
+        .report-header h1 { margin: 0; font-size: 1.8em; }
+        .report-header .school-name { text-align: right; }
+        .report-title { text-align: center; margin: 1.5em 0; font-size: 1.4em; font-weight: 600; }
+        
+        .student-info { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5em 1em; margin-bottom: 2em; padding: 1em; background: var(--light-bg); border-radius: 4px; }
+        .student-info div { display: flex; justify-content: space-between; }
+        .student-info span:first-child { font-weight: 600; }
+
+        .marks-table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        .marks-table th, .marks-table td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+        .marks-table th { background-color: var(--light-bg); font-weight: 600; }
+        .marks-table .subject-group { font-weight: bold; background-color: #e9ecef; }
+        
+        .report-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 2em; padding: 1.5em; border: 1px solid #ccc; border-radius: 4px; }
+        .summary-item { display: flex; flex-direction: column; }
+        .summary-item .label { font-weight: 600; font-size: 1.1em; }
+        .summary-item .value { font-size: 1.5em; color: var(--primary-color); font-weight: bold; }
+
+        .final-result { text-align: center; margin-top: 2em; padding: 1em; border-radius: 4px; font-size: 2em; font-weight: bold; }
+        .result-pass { background-color: #d4edda; color: #155724; }
+        .result-fail { background-color: #f8d7da; color: #721c24; }
+
+        #loading-message { font-size: 1.5em; text-align: center; padding: 2em; }
+
+        @media print {
+            body { background-color: white; padding: 0; }
+            .controls { display: none; }
+            .report-card { box-shadow: none; border: none; margin: 0; padding: 0; width: 100%; height: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button id="print-btn" class="btn btn-primary" style="display: none;" onclick="window.print()">Print Report</button>
+    </div>
+
+    <div id="report-card" class="report-card" style="display: none;">
+        <header class="report-header">
+            <div>
+                <h1>Progress Report</h1>
+                <h2 id="academic-year-display"></h2>
+            </div>
+            <div class="school-name">
+                <h3>College Management System</h3>
+                <p>123 University Ave, Knowledge City</p>
+            </div>
+        </header>
+
+        <h2 class="report-title">Student Academic Performance</h2>
+
+        <section class="student-info">
+            <div><span>Student Name:</span> <span id="student-name"></span></div>
+            <div><span>Class:</span> <span id="student-class"></span></div>
+            <div><span>Roll Number:</span> <span id="student-rollno"></span></div>
+        </section>
+
+        <section id="marks-section">
+            <!-- Marks table will be generated here -->
+        </section>
+
+        <section class="report-summary">
+            <div class="summary-item">
+                <span class="label">Total Marks</span>
+                <span class="value" id="total-marks"></span>
+            </div>
+            <div class="summary-item">
+                <span class="label">Overall Percentage</span>
+                <span class="value" id="overall-percentage"></span>
+            </div>
+            <div class="summary-item">
+                <span class="label">Attendance</span>
+                <span class="value" id="attendance-percentage"></span>
+            </div>
+        </section>
+
+        <section id="final-result" class="final-result">
+            <!-- Final result will be generated here -->
+        </section>
+    </div>
+
+    <div id="loading-message">Loading report data...</div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // --- CONFIGURATION ---
+        const PASS_PERCENTAGE = 40;
+
+        // DOM Elements
+        const loadingMessage = document.getElementById('loading-message');
+        const reportCard = document.getElementById('report-card');
+        const printBtn = document.getElementById('print-btn');
+
+        // --- INITIALIZATION ---
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const studentId = params.get('id');
+            if (studentId) {
+                generateReport(studentId);
+            } else {
+                showError('No student ID provided. Please generate this report from the admin or teacher panel.');
+            }
+        };
+        
+        function showError(message) {
+            loadingMessage.style.color = 'var(--danger-color)';
+            loadingMessage.textContent = `Error: ${message}`;
+        }
+
+        // --- CORE REPORT GENERATION LOGIC ---
+        async function generateReport(studentId) {
+            try {
+                // 1. Fetch all required data in parallel for performance
+                const studentDoc = await db.collection('students').doc(studentId).get();
+                if (!studentDoc.exists) throw new Error('Student profile not found.');
+                
+                const student = { id: studentDoc.id, ...studentDoc.data() };
+                const academicYear = student.academicYear;
+                if (!academicYear) throw new Error('Student is not assigned to an academic year.');
+
+                const [examsSnap, marksSnap, attendanceSnap] = await Promise.all([
+                    db.collection('exams').where('academicYear', '==', academicYear).get(),
+                    db.collection('marks').where('studentId', '==', studentId).where('academicYear', '==', academicYear).get(),
+                    db.collection('attendance').where('academicYear', '==', academicYear).get()
+                ]);
+
+                // 2. Process the fetched data
+                const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const allMarksByExam = {};
+                marksSnap.forEach(doc => {
+                    const data = doc.data();
+                    allMarksByExam[data.examId] = data.marks;
+                });
+                
+                // 3. Perform Calculations
+                const attendance = calculateAttendance(attendanceSnap.docs, studentId);
+                const marksSummary = calculateMarks(exams, allMarksByExam);
+
+                // 4. Render the report
+                renderReport(student, academicYear, attendance, marksSummary);
+
+            } catch (error) {
+                console.error("Report Generation Error:", error);
+                showError(error.message);
+            }
+        }
+        
+        // --- CALCULATION HELPERS ---
+        function calculateAttendance(attendanceDocs, studentId) {
+            let totalDays = 0, presentDays = 0;
+            attendanceDocs.forEach(doc => {
+                const records = doc.data().records;
+                if (records && records[studentId]) {
+                    totalDays++;
+                    if (records[studentId] === 'present') {
+                        presentDays++;
+                    }
+                }
+            });
+            const percentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
+            return { percentage, text: `${presentDays} / ${totalDays}` };
+        }
+
+        function calculateMarks(exams, allMarksByExam) {
+            let grandTotalObtained = 0;
+            let grandTotalMax = 0;
+            const marksByExam = [];
+
+            exams.forEach(exam => {
+                const examMarks = allMarksByExam[exam.id];
+                if (!examMarks) return; // Skip exams for which no marks are entered for this student
+                
+                let examTotalObtained = 0;
+                let examTotalMax = 0;
+                const subjectResults = [];
+
+                for(const subjectKey in exam.marksStructure) {
+                    if (subjectKey.startsWith(`CLASS_${examMarks.class}_`)) {
+                        const subjectName = subjectKey.replace(`CLASS_${examMarks.class}_`, '').replace(/_/g, ' ');
+                        const maxMarks = exam.marksStructure[subjectKey];
+                        const obtainedMarks = findCaseInsensitiveKey(examMarks, subjectName);
+
+                        if (obtainedMarks !== null) {
+                            examTotalObtained += obtainedMarks;
+                            examTotalMax += maxMarks;
+                            subjectResults.push({
+                                name: subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase(),
+                                obtained: obtainedMarks,
+                                max: maxMarks,
+                                grade: getGrade((obtainedMarks / maxMarks) * 100)
+                            });
+                        }
+                    }
+                }
+                
+                if (subjectResults.length > 0) {
+                    marksByExam.push({ name: exam.examName, results: subjectResults, totalObtained: examTotalObtained, totalMax: examTotalMax });
+                    grandTotalObtained += examTotalObtained;
+                    grandTotalMax += examTotalMax;
+                }
+            });
+            
+            const overallPercentage = grandTotalMax > 0 ? Math.round((grandTotalObtained / grandTotalMax) * 100) : 0;
+            const finalResult = overallPercentage >= PASS_PERCENTAGE ? 'PASS' : 'FAIL';
+            
+            return { marksByExam, grandTotalObtained, grandTotalMax, overallPercentage, finalResult };
+        }
+        
+        function getGrade(percentage) {
+            if (percentage >= 90) return 'A+';
+            if (percentage >= 80) return 'A';
+            if (percentage >= 70) return 'B+';
+            if (percentage >= 60) return 'B';
+            if (percentage >= 50) return 'C';
+            if (percentage >= 40) return 'D';
+            return 'F';
+        }
+
+        function findCaseInsensitiveKey(obj, key) {
+            const keyToFind = key.toUpperCase();
+            for(const k in obj) {
+                if(k.toUpperCase() === keyToFind) return obj[k];
+            }
+            return null; // Return null if not found
+        }
+        
+        // --- RENDER FUNCTION ---
+        function renderReport(student, academicYear, attendance, marksSummary) {
+            // Populate headers and student info
+            document.getElementById('academic-year-display').textContent = academicYear;
+            document.getElementById('student-name').textContent = student.name;
+            document.getElementById('student-class').textContent = student.class;
+            document.getElementById('student-rollno').textContent = student.rollNo;
+
+            // Build marks table
+            let marksHtml = '';
+            marksSummary.marksByExam.forEach(exam => {
+                marksHtml += `<table class="marks-table">
+                                <thead>
+                                    <tr class="subject-group"><th colspan="4">${exam.name}</th></tr>
+                                    <tr><th>Subject</th><th>Max Marks</th><th>Marks Obtained</th><th>Grade</th></tr>
+                                </thead>
+                                <tbody>`;
+                exam.results.forEach(res => {
+                    marksHtml += `<tr><td>${res.name}</td><td>${res.max}</td><td>${res.obtained}</td><td>${res.grade}</td></tr>`;
+                });
+                marksHtml += `<tr class="subject-group"><td><strong>Total</strong></td><td><strong>${exam.totalMax}</strong></td><td colspan="2"><strong>${exam.totalObtained}</strong></td></tr>`;
+                marksHtml += `</tbody></table>`;
+            });
+            document.getElementById('marks-section').innerHTML = marksHtml;
+
+            // Populate summary
+            document.getElementById('total-marks').textContent = `${marksSummary.grandTotalObtained} / ${marksSummary.grandTotalMax}`;
+            document.getElementById('overall-percentage').textContent = `${marksSummary.overallPercentage}%`;
+            document.getElementById('attendance-percentage').textContent = `${attendance.percentage}% (${attendance.text})`;
+
+            // Populate final result
+            const finalResultEl = document.getElementById('final-result');
+            finalResultEl.textContent = `Result: ${marksSummary.finalResult}`;
+            finalResultEl.className = `final-result result-${marksSummary.finalResult.toLowerCase()}`;
+
+            // Show the report
+            loadingMessage.style.display = 'none';
+            reportCard.style.display = 'block';
+            printBtn.style.display = 'inline-block';
+        }
+    </script>
+</body>
+</html>

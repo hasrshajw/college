@@ -129,7 +129,14 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -138,7 +145,7 @@
         // --- GLOBAL STATE ---
         let CURRENT_ACADEMIC_YEAR = null;
         let invoicesCache = [];
-        let feeCategories = ["Tuition Fee", "Transport Fee", "Library Fee", "Books & Supplies", "Other Charges"];
+        const feeCategories = ["Tuition Fee", "Transport Fee", "Library Fee", "Books & Supplies", "Other Charges"];
 
         // --- DOM ELEMENTS ---
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
@@ -156,7 +163,7 @@
                 if (user.email === adminEmail || (userDoc.exists && userDoc.data().role === 'accountant')) {
                     mainContainer.style.display = 'block';
                     userEmailEl.textContent = user.email;
-                    initializePage();
+                    await initializePage();
                 } else {
                     handleAuthError('Access Denied. You do not have permissions to manage fees.');
                 }
@@ -168,7 +175,9 @@
         // Main function to start the page logic.
         async function initializePage() {
             try {
+                // ** CRITICAL FIX **: Ensure global settings are fetched BEFORE any other function runs.
                 await fetchGlobalSettings();
+                // Now that settings are loaded, proceed with the rest of the setup.
                 populateClassDropdowns();
                 listenForInvoices();
                 setupEventListeners();
@@ -177,14 +186,12 @@
             }
         }
         
-        // Fetches the single source of truth for the academic year and other settings.
+        // Fetches the single source of truth for the academic year.
         async function fetchGlobalSettings() {
             const settingsRef = db.collection('settings').doc('global');
             const doc = await settingsRef.get();
             if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
             CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
-            // You can also get feeCategories from settings if you make it editable there.
-            // if (doc.data().feeCategories) feeCategories = doc.data().feeCategories;
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
@@ -227,19 +234,13 @@
             feeCategoriesContainer.innerHTML = '';
             document.getElementById('fee-categories-list').innerHTML = feeCategories.map(cat => `<li>${cat}</li>`).join('');
             if (!selectedClass) return;
-            
-            feeCategoriesContainer.innerHTML = feeCategories.map(cat => {
-                const inputId = cat.replace(/\s+/g, '-').toLowerCase();
-                return `<label>${cat}:</label><input type="number" id="${inputId}" data-category="${cat}" placeholder="Amount" min="0" value="0">`;
-            }).join('');
-
+            feeCategoriesContainer.innerHTML = feeCategories.map(cat => `<label>${cat}:</label><input type="number" data-category="${cat}" placeholder="Amount" min="0" value="0">`).join('');
             const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
             const doc = await db.collection('feeStructures').doc(docId).get();
             if (doc.exists) {
                 const data = doc.data();
                 for (const category in data.fees) {
-                    const inputId = category.replace(/\s+/g, '-').toLowerCase();
-                    const inputEl = document.getElementById(inputId);
+                    const inputEl = feeCategoriesContainer.querySelector(`input[data-category="${category}"]`);
                     if (inputEl) inputEl.value = data.fees[category];
                 }
             }

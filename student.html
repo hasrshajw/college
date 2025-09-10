@@ -45,6 +45,7 @@
 
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2em; }
         .dashboard-section { background: white; border-radius: 8px; padding: 1.5em; border: 1px solid #eee; }
+        .stat-card { background: white; border-radius: 8px; padding: 1.5em; text-align: center; border: 1px solid #eee; }
         .stat-card .stat-value { font-size: 3.5em; font-weight: 700; color: var(--primary-color); line-height: 1; }
         .stat-card .stat-label { font-weight: 500; color: var(--light-text); margin-top: 0.5em; }
         .stat-card .stat-subtext { font-size: 0.9em; color: var(--light-text); }
@@ -126,6 +127,7 @@
         const timeSlots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-01:00", "02:00-03:00", "03:00-04:00"];
 
         // --- AUTH & INITIALIZATION ---
+        // Checks if a user is logged in and has the 'student' role.
         auth.onAuthStateChanged(async user => {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.email).get();
@@ -136,23 +138,34 @@
                 } else { handleAuthError('Access Denied. You do not have student permissions.'); }
             } else { window.location.href = 'index.html'; }
         });
+        // Handles logout and authorization errors.
         function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
         logoutBtn.onclick = () => { if (attendanceUnsubscribe) attendanceUnsubscribe(); auth.signOut(); };
         
+        // Fetches the current academic year from the central settings document.
         async function fetchGlobalSettings() {
             try { const doc = await db.collection('settings').doc('global').get(); if (doc.exists) CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear; } 
             catch(e) { console.error("Could not fetch academic year settings."); CURRENT_ACADEMIC_YEAR = null; }
         }
 
+        // Fetches all student profiles linked to the logged-in user's email.
         async function initializeStudentDashboard(email) {
-            const studentSnap = await db.collection('students').where('email', '==', email).get();
-            if (studentSnap.empty) { studentDashboardView.innerHTML = '<h2>Error: Your student profile could not be found.</h2>'; studentDashboardView.style.display = 'block'; return; }
-            linkedStudentProfiles = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Find all active students linked to this email, supporting old and new data.
+            const studentSnap = await db.collection('students').where('email', '==', email).where('status', '==', 'active').get();
+            const studentSnapOld = await db.collection('students').where('email', '==', email).where('status', '==', null).get(); // For backward compatibility
+            
+            const allDocs = [...studentSnap.docs, ...studentSnapOld.docs];
+            
+            if (allDocs.length === 0) { studentDashboardView.innerHTML = '<h2>Error: No active student profile could not be found for this account.</h2>'; studentDashboardView.style.display = 'block'; return; }
+            
+            linkedStudentProfiles = allDocs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
             if (linkedStudentProfiles.length > 1) { showProfileSelector(); } 
             else { loadDashboardForStudent(linkedStudentProfiles[0]); }
         }
 
         // --- UI VIEW MANAGEMENT ---
+        // Displays the screen to choose a student profile if multiple are found.
         function showProfileSelector() {
             studentDashboardView.style.display = 'none';
             profileSelectorView.style.display = 'block';
@@ -162,17 +175,20 @@
             });
         }
 
+        // Loads the main dashboard for a specifically chosen student profile.
         function loadDashboardForStudent(profile) {
             profileSelectorView.style.display = 'none';
             studentDashboardView.style.display = 'block';
             dashboardHeader.innerHTML = `<div><h2>${profile.name}</h2><p style="margin:0; color: var(--light-text);">Class: ${profile.class} | Roll No: ${profile.rollNo} | Year: ${profile.academicYear || 'N/A'}</p></div>${linkedStudentProfiles.length > 1 ? `<button class="btn btn-switch" onclick="showProfileSelector()">Switch Profile</button>` : ''}`;
-            showDashboardTab('dashboard');
+            showDashboardTab('dashboard'); // Default to the main dashboard tab
+            // Fetch all data for this specific student
             listenForStudentAttendance(profile.id, profile.academicYear);
             fetchExamMarks(profile.id, profile.academicYear);
             fetchTimetable(profile.class, profile.academicYear);
             fetchNotices();
         }
 
+        // Manages the tab switching in the dashboard view.
         function showDashboardTab(tabName) {
             document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
             document.querySelector(`[onclick="showDashboardTab('${tabName}')"]`).classList.add('active');
@@ -181,10 +197,62 @@
         }
 
         // --- DATA FETCHING & RENDERING FOR DASHBOARD ---
-        function listenForStudentAttendance(studentId, academicYear) { /* ... Unchanged from previous version ... */ }
-        function renderAttendanceSummary(total, present) { /* ... Unchanged from previous version ... */ }
-        async function fetchExamMarks(studentId, academicYear) { /* ... Unchanged from previous version ... */ }
         
+        // Sets up a real-time listener for a student's attendance.
+        function listenForStudentAttendance(studentId, academicYear) {
+            if (attendanceUnsubscribe) attendanceUnsubscribe(); // Stop previous listener
+            let query = db.collection('attendance');
+            const studentYear = academicYear || CURRENT_ACADEMIC_YEAR;
+            if (studentYear) query = query.where('academicYear', '==', studentYear);
+
+            attendanceUnsubscribe = query.onSnapshot(snap => {
+                const myRecords = snap.docs.filter(doc => doc.data().records && doc.data().records[studentId]);
+                const presentDays = myRecords.filter(d => d.data().records[studentId] === 'present').length;
+                renderAttendanceSummary(myRecords.length, presentDays);
+            });
+        }
+
+        // Renders the attendance summary stat card.
+        function renderAttendanceSummary(total, present) {
+            if (total === 0) { attendanceSummaryContainer.innerHTML = '<p>No attendance records found for this year.</p>'; return; }
+            const percentage = Math.round((present / total) * 100);
+            attendanceSummaryContainer.innerHTML = `<div class="stat-card"><div class="stat-value">${percentage}%</div><div class="stat-label">Overall Attendance</div><p class="stat-subtext">${present} of ${total} days attended</p></div>`;
+        }
+
+        // Fetches and renders all exam results for the student.
+        async function fetchExamMarks(studentId, academicYear) {
+            examMarksContainer.innerHTML = '<p>Loading exam results...</p>';
+            const studentYear = academicYear || CURRENT_ACADEMIC_YEAR;
+            if(!studentYear) { examMarksContainer.innerHTML = '<p>Academic year not set. Cannot fetch exams.</p>'; return; }
+            
+            const examsSnap = await db.collection('exams').where('academicYear', '==', studentYear).get();
+            if (examsSnap.empty) { examMarksContainer.innerHTML = '<p>No exams have been scheduled for this academic year.</p>'; return; }
+            
+            const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const examIds = exams.map(e => e.id);
+            if (examIds.length === 0) return;
+
+            const marksSnap = await db.collection('marks').where('studentId', '==', studentId).where('examId', 'in', examIds).get();
+            if (marksSnap.empty) { examMarksContainer.innerHTML = '<p>No marks have been entered for you yet.</p>'; return; }
+            
+            let tableHtml = '<table class="marks-table"><thead><tr><th>Exam</th><th>Subject</th><th>Marks Obtained</th><th>Max Marks</th></tr></thead><tbody>';
+            marksSnap.forEach(doc => {
+                const markData = doc.data();
+                const exam = exams.find(e => e.id === markData.examId);
+                for (const subject in markData.marks) {
+                    const marksKey = `CLASS_${markData.class}_${subject.replace(/\s+/g, '_').toUpperCase()}`;
+                    const maxMarks = exam ? exam.marksStructure[marksKey] : 0;
+                    const obtainedMarks = markData.marks[subject];
+                    const passMark = maxMarks ? maxMarks * 0.4 : 0; // Assuming 40% is passing
+                    const statusClass = obtainedMarks >= passMark ? 'marks-pass' : 'marks-fail';
+                    tableHtml += `<tr><td>${markData.examName}</td><td>${subject}</td><td class="${statusClass}">${obtainedMarks}</td><td>${maxMarks || '-'}</td></tr>`;
+                }
+            });
+            tableHtml += '</tbody></table>';
+            examMarksContainer.innerHTML = tableHtml;
+        }
+        
+        // Fetches and displays the timetable for today.
         async function fetchTimetable(className, academicYear) {
             timetableContainer.innerHTML = "<p>Loading timetable...</p>";
             const studentYear = academicYear || CURRENT_ACADEMIC_YEAR;
@@ -198,7 +266,6 @@
             const todaySchedule = schedule[today];
             
             if (!todaySchedule || todaySchedule.every(s => !s)) { timetableContainer.innerHTML = "<p>No classes scheduled for today.</p>"; return; }
-
             let tableHtml = '<table class="timetable"><thead><tr><th>Time</th><th>Subject</th></tr></thead><tbody>';
             todaySchedule.forEach((subject, index) => {
                 if (subject) {
@@ -209,6 +276,7 @@
             timetableContainer.innerHTML = tableHtml;
         }
 
+        // Fetches and displays the latest school-wide notices.
         async function fetchNotices() {
             noticeBoardContainer.innerHTML = "<p>Loading notices...</p>";
             const querySnap = await db.collection('notices').orderBy('publishedAt', 'desc').limit(5).get();
@@ -218,11 +286,6 @@
                 return `<div class="notice-item"><h4>${notice.title}</h4><p>${notice.message}</p></div>`
             }).join('');
         }
-        
-        // --- UNMODIFIED HELPERS ---
-        function listenForStudentAttendance(studentId, academicYear) { if (attendanceUnsubscribe) attendanceUnsubscribe(); let query = db.collection('attendance'); if (academicYear) query = query.where('academicYear', '==', academicYear); attendanceUnsubscribe = query.onSnapshot(snap => { const myRecords = snap.docs.filter(doc => doc.data().records && doc.data().records[studentId]); renderAttendanceSummary(myRecords.length, myRecords.filter(d => d.data().records[studentId] === 'present').length); }); }
-        function renderAttendanceSummary(total, present) { if (total === 0) { attendanceSummaryContainer.innerHTML = '<p>No attendance records found yet.</p>'; return; } const percentage = Math.round((present / total) * 100); attendanceSummaryContainer.innerHTML = `<div class="stat-card"><div class="stat-value">${percentage}%</div><div class="stat-label">Overall Attendance</div><p class="stat-subtext">${present} of ${total} days attended</p></div>`; }
-        async function fetchExamMarks(studentId, academicYear) { examMarksContainer.innerHTML = '<p>Loading exam results...</p>'; const studentYear = academicYear || CURRENT_ACADEMIC_YEAR; if(!studentYear) { examMarksContainer.innerHTML = '<p>Academic year not set. Cannot fetch exams.</p>'; return; } const examsSnap = await db.collection('exams').where('academicYear', '==', studentYear).get(); if (examsSnap.empty) { examMarksContainer.innerHTML = '<p>No exams scheduled for this year.</p>'; return; } const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })); const examIds = exams.map(e => e.id); const marksSnap = await db.collection('marks').where('studentId', '==', studentId).where('examId', 'in', examIds).get(); if (marksSnap.empty) { examMarksContainer.innerHTML = '<p>No marks have been entered yet.</p>'; return; } let tableHtml = '<table class="marks-table"><thead><tr><th>Exam</th><th>Subject</th><th>Marks Obtained</th><th>Max Marks</th></tr></thead><tbody>'; marksSnap.forEach(doc => { const markData = doc.data(); const exam = exams.find(e => e.id === markData.examId); for (const subject in markData.marks) { const marksKey = `CLASS_${markData.class}_${subject.replace(/\s+/g, '_').toUpperCase()}`; const maxMarks = exam.marksStructure[marksKey] || 0; const obtainedMarks = markData.marks[subject]; const passMark = maxMarks * 0.4; const statusClass = obtainedMarks >= passMark ? 'marks-pass' : 'marks-fail'; tableHtml += `<tr><td>${markData.examName}</td><td>${subject}</td><td class="${statusClass}">${obtainedMarks}</td><td>${maxMarks}</td></tr>`; } }); tableHtml += '</tbody></table>'; examMarksContainer.innerHTML = tableHtml; }
     </script>
 </body>
 </html>

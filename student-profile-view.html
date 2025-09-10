@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Profile View - Admin/Teacher</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 900px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1.5em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn-primary { background-color: var(--primary-color); }
+        
+        .profile-header { background: var(--light-bg); padding: 1.5em; border-radius: 8px; margin-bottom: 2em; }
+        .profile-header h1 { margin: 0; }
+        .profile-header .meta { color: #7f8c8d; }
+        .status-badge { padding: 0.25em 0.75em; border-radius: 12px; font-size: 0.8em; font-weight: 600; color: white; }
+        .status-active { background-color: var(--success-color); }
+        .status-graduated { background-color: var(--primary-color); }
+        .status-left-school { background-color: #7f8c8d; }
+
+        .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
+        .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 3px solid transparent; color: var(--dark-text); font-weight: 500; }
+        .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5em; }
+        .stat-card { background: white; border-radius: 8px; padding: 1.5em; text-align: center; border: 1px solid #eee; }
+        .stat-card .stat-value { font-size: 3em; font-weight: 700; color: var(--primary-color); line-height: 1; }
+        .stat-card .stat-label { font-weight: 500; color: #7f8c8d; margin-top: 0.5em; }
+        
+        .marks-table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        .marks-table th, .marks-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        .marks-table th { background-color: var(--light-bg); }
+        .marks-pass { color: var(--success-color); font-weight: bold; }
+        .marks-fail { color: var(--danger-color); font-weight: bold; }
+
+        #loading-message { font-size: 1.5em; text-align: center; padding: 2em; }
+
+        @media print {
+            body { background-color: white; padding: 0; }
+            .container { box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; }
+            .header { display: none; }
+            .profile-header h1 { font-size: 2em; }
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container" class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info"><h1>Student Profile View</h1><p>You are viewing this as an authorized user.</p></div>
+            <button id="print-btn" class="btn btn-primary" onclick="window.print()">Print Summary</button>
+        </div>
+        
+        <div id="profile-header" class="profile-header"></div>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('summary')">Academic Summary</button>
+            <button class="tab-button" onclick="showTab('marks')">Detailed Marks</button>
+        </div>
+        
+        <div id="summary-content" class="tab-content active">
+            <div class="summary-grid">
+                <div id="attendance-summary-card" class="stat-card"></div>
+                <div id="performance-summary-card" class="stat-card"></div>
+            </div>
+        </div>
+        
+        <div id="marks-content" class="tab-content">
+            <div id="exam-marks-container"></div>
+        </div>
+    </div>
+
+    <div id="loading-message">Authenticating and loading profile...</div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = { /* Your Config */ };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const adminEmail = "harshavardhanjw@gmail.com";
+
+        // DOM Elements
+        const mainContainer = document.getElementById('main-container');
+        const loadingMessage = document.getElementById('loading-message');
+        const profileHeader = document.getElementById('profile-header');
+        const attendanceSummaryCard = document.getElementById('attendance-summary-card');
+        const performanceSummaryCard = document.getElementById('performance-summary-card');
+        const examMarksContainer = document.getElementById('exam-marks-container');
+        
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(async user => {
+            if (user) {
+                const userDoc = await db.collection('users').doc(user.email).get();
+                if (user.email === adminEmail || (userDoc.exists && userDoc.data().role === 'teacher')) {
+                    // Authorized user, proceed to load data
+                    const params = new URLSearchParams(window.location.search);
+                    const studentId = params.get('id');
+                    if (studentId) {
+                        generateProfile(studentId);
+                    } else {
+                        showError('No Student ID provided in the URL.');
+                    }
+                } else {
+                    showError('You are not authorized to view this page.');
+                }
+            } else {
+                // Not logged in, redirect to login page
+                window.location.href = 'index.html';
+            }
+        });
+
+        function showError(message) {
+            mainContainer.style.display = 'none';
+            loadingMessage.style.color = 'var(--danger-color)';
+            loadingMessage.textContent = `Error: ${message}`;
+        }
+        
+        // --- UI Control ---
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`${tabName}-content`).classList.add('active');
+        }
+        
+        // --- CORE PROFILE GENERATION LOGIC ---
+        async function generateProfile(studentId) {
+            try {
+                // 1. Fetch all required data in parallel
+                const studentDoc = await db.collection('students').doc(studentId).get();
+                if (!studentDoc.exists) throw new Error('Student profile not found.');
+                
+                const student = { id: studentDoc.id, ...studentDoc.data() };
+                const academicYear = student.academicYear;
+                if (!academicYear) throw new Error('Student is not assigned to an academic year.');
+
+                const [examsSnap, marksSnap, attendanceSnap] = await Promise.all([
+                    db.collection('exams').where('academicYear', '==', academicYear).get(),
+                    db.collection('marks').where('studentId', '==', studentId).where('academicYear', '==', academicYear).get(),
+                    db.collection('attendance').where('academicYear', '==', academicYear).get()
+                ]);
+
+                // 2. Process and Calculate
+                const exams = examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const allMarksByExam = {};
+                marksSnap.forEach(doc => { const data = doc.data(); allMarksByExam[data.examId] = data.marks; });
+                
+                const attendance = calculateAttendance(attendanceSnap.docs, studentId);
+                const marksSummary = calculateMarks(exams, allMarksByExam, student.class);
+
+                // 3. Render the report
+                renderProfile(student, attendance, marksSummary);
+
+            } catch (error) {
+                console.error("Profile Generation Error:", error);
+                showError(error.message);
+            }
+        }
+        
+        // --- CALCULATION HELPERS ---
+        function calculateAttendance(attendanceDocs, studentId) { /* ... Same as student-report.html ... */ }
+        function calculateMarks(exams, allMarksByExam, studentClass) { /* ... Same as student-report.html ... */ }
+        function findCaseInsensitiveKey(obj, key) { /* ... Same as student-report.html ... */ }
+        
+        // --- RENDER FUNCTION ---
+        function renderProfile(student, attendance, marksSummary) {
+            // Populate header
+            const statusClass = `status-${(student.status || 'active').replace(/\s+/g, '-').toLowerCase()}`;
+            profileHeader.innerHTML = `
+                <div>
+                    <h1>${student.name}</h1>
+                    <p class="meta">Class: ${student.class} | Roll No: ${student.rollNo} | Year: ${student.academicYear}</p>
+                </div>
+                <div><span class="status-badge ${statusClass}">${student.status || 'Active'}</span></div>
+            `;
+
+            // Populate summary cards
+            attendanceSummaryCard.innerHTML = `<div class="stat-value">${attendance.percentage}%</div><div class="stat-label">Overall Attendance</div>`;
+            performanceSummaryCard.innerHTML = `<div class="stat-value">${marksSummary.overallPercentage}%</div><div class="stat-label">Overall Performance</div>`;
+
+            // Populate detailed marks table
+            let tableHtml = '<h3>Detailed Exam Results</h3>';
+            if (marksSummary.marksByExam.length === 0) {
+                tableHtml += '<p>No marks have been entered for this student in this academic year.</p>';
+            } else {
+                marksSummary.marksByExam.forEach(exam => {
+                    tableHtml += `<h4>${exam.name}</h4><table class="marks-table">
+                        <thead><tr><th>Subject</th><th>Marks Obtained</th><th>Max Marks</th></tr></thead><tbody>`;
+                    exam.results.forEach(res => {
+                        const passMark = res.max * 0.4;
+                        const statusClass = res.obtained >= passMark ? 'marks-pass' : 'marks-fail';
+                        tableHtml += `<tr><td>${res.name}</td><td class="${statusClass}">${res.obtained}</td><td>${res.max}</td></tr>`;
+                    });
+                    tableHtml += `</tbody></table>`;
+                });
+            }
+            examMarksContainer.innerHTML = tableHtml;
+
+            // Show the report
+            loadingMessage.style.display = 'none';
+            mainContainer.style.display = 'block';
+        }
+
+        // --- UNMODIFIED HELPERS ---
+        function calculateAttendance(attendanceDocs, studentId) { let totalDays = 0, presentDays = 0; attendanceDocs.forEach(doc => { const records = doc.data().records; if (records && records[studentId]) { totalDays++; if (records[studentId] === 'present') { presentDays++; } } }); const percentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100; return { percentage, text: `${presentDays} / ${totalDays}` }; }
+        function findCaseInsensitiveKey(obj, key) { const keyToFind = key.toUpperCase(); for(const k in obj) { if(k.toUpperCase() === keyToFind) return obj[k]; } return null; }
+        function calculateMarks(exams, allMarksByExam, studentClass) {
+            let grandTotalObtained = 0, grandTotalMax = 0;
+            const marksByExam = [];
+            exams.forEach(exam => {
+                const examMarks = allMarksByExam[exam.id];
+                if (!examMarks) return;
+                let examTotalObtained = 0, examTotalMax = 0;
+                const subjectResults = [];
+                for(const subjectKey in exam.marksStructure) {
+                    if (subjectKey.startsWith(`CLASS_${studentClass}_`)) {
+                        const subjectName = subjectKey.replace(`CLASS_${studentClass}_`, '').replace(/_/g, ' ');
+                        const maxMarks = exam.marksStructure[subjectKey];
+                        const obtainedMarks = findCaseInsensitiveKey(examMarks, subjectName);
+                        if (obtainedMarks !== null) { examTotalObtained += obtainedMarks; examTotalMax += maxMarks; subjectResults.push({ name: subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase(), obtained: obtainedMarks, max: maxMarks }); }
+                    }
+                }
+                if (subjectResults.length > 0) { marksByExam.push({ name: exam.examName, results: subjectResults }); grandTotalObtained += examTotalObtained; grandTotalMax += examTotalMax; }
+            });
+            const overallPercentage = grandTotalMax > 0 ? Math.round((grandTotalObtained / grandTotalMax) * 100) : 0;
+            return { marksByExam, overallPercentage };
+        }
+    </script>
+</body>
+</html>

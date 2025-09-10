@@ -74,7 +74,7 @@
         </div>
 
         <div id="generate-content" class="content">
-            <div class="grid-layout">
+             <div class="grid-layout">
                 <div>
                     <h2>Generate Invoices</h2>
                     <form id="generate-invoices-form">
@@ -156,17 +156,13 @@
         const ledgerClassSelect = document.getElementById('ledger-class-select'), ledgerStudentSelect = document.getElementById('ledger-student-select'), studentLedgerContainer = document.getElementById('student-ledger-container');
         
         // --- AUTH & INITIALIZATION ---
-        // Checks if user is the admin or has the 'accountant' role.
         auth.onAuthStateChanged(async user => {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.email).get();
                 if (user.email === adminEmail || (userDoc.exists && userDoc.data().role === 'accountant')) {
-                    mainContainer.style.display = 'block';
-                    userEmailEl.textContent = user.email;
+                    mainContainer.style.display = 'block'; userEmailEl.textContent = user.email;
                     await initializePage();
-                } else {
-                    handleAuthError('Access Denied. You do not have permissions to manage fees.');
-                }
+                } else { handleAuthError('Access Denied. You do not have permissions to manage fees.'); }
             } else { window.location.href = 'index.html'; }
         });
         function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
@@ -175,11 +171,11 @@
         // ** CRITICAL FIX **: The main initialization logic is now sequential to prevent race conditions.
         async function initializePage() {
             try {
-                await fetchGlobalSettings(); // 1. Wait for settings to load.
-                await listenForStudents();    // 2. Wait for students to load.
-                populateClassDropdowns();     // 3. Populate UI elements.
-                listenForInvoices();          // 4. Start listening for real-time invoice data.
-                setupEventListeners();        // 5. Activate all event listeners.
+                await fetchGlobalSettings();
+                await listenForStudents();
+                populateClassDropdowns();
+                listenForInvoices();
+                setupEventListeners();
             } catch (error) {
                 document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p>`;
             }
@@ -191,9 +187,7 @@
             const doc = await settingsRef.get();
             if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
             CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
-            if (doc.data().feeCategories && doc.data().feeCategories.length > 0) {
-                feeCategories = doc.data().feeCategories; // Load custom categories if they exist
-            }
+            if (doc.data().feeCategories && doc.data().feeCategories.length > 0) { feeCategories = doc.data().feeCategories; }
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
@@ -201,128 +195,68 @@
         function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
-
-        // Populates all class selection dropdowns on the page.
-        function populateClassDropdowns() {
-            const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-            structureClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
-            generateClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
-            ledgerClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
-        }
+        function populateClassDropdowns() { const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join(''); structureClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; generateClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; ledgerClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions; }
 
         // --- DATA LISTENERS ---
         async function listenForStudents() {
             const studentSnap = await db.collection('students').where('status', '==', 'active').get();
             studentsCache = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
-
-        // Sets up a real-time listener for invoices in the current academic year.
         function listenForInvoices() {
             if (!CURRENT_ACADEMIC_YEAR) return;
-            // This is kept separate for real-time updates on the ledger if a payment is made.
-            db.collection('invoices').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => {
+            db.collection('invoices').onSnapshot(snap => {
                 invoicesCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // If a student ledger is currently open, refresh it.
-                if(ledgerStudentSelect.value) loadStudentLedger();
+                if(ledgerStudentSelect.value) loadStudentLedger(); // Refresh ledger if a student is selected
             });
         }
         
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            // Ledger Tab
             ledgerClassSelect.addEventListener('change', populateStudentDropdown);
             ledgerStudentSelect.addEventListener('change', loadStudentLedger);
-            // Other tabs
             feeStructureForm.addEventListener('submit', handleSaveStructure);
             structureClassSelect.addEventListener('change', loadFeeStructure);
             generateInvoicesForm.addEventListener('submit', handleGenerateInvoices);
             document.getElementById('edit-categories-btn').addEventListener('click', openEditCategoriesModal);
         }
         
-        // --- STUDENT LEDGER LOGIC (NEW CORE FEATURE) ---
-        // Populates the student dropdown based on the selected class.
-        function populateStudentDropdown() {
-            const selectedClass = ledgerClassSelect.value;
-            ledgerStudentSelect.innerHTML = '<option value="">-- Select Student --</option>';
-            studentLedgerContainer.innerHTML = '<p>Please select a student to view their ledger.</p>';
-            if (!selectedClass) { ledgerStudentSelect.disabled = true; return; }
-
-            const studentsInClass = studentsCache.filter(s => s.class == selectedClass && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name));
-            studentsInClass.forEach(student => {
-                ledgerStudentSelect.innerHTML += `<option value="${student.id}">${student.name} (${student.rollNo})</option>`;
-            });
-            ledgerStudentSelect.disabled = false;
-        }
-
-        // Fetches and displays the complete financial history for a selected student.
-        async function loadStudentLedger() {
-            const studentId = ledgerStudentSelect.value;
-            if (!studentId) { studentLedgerContainer.innerHTML = '<p>Please select a student to view their ledger.</p>'; return; }
-            studentLedgerContainer.innerHTML = `<div class="status-message">Loading financial ledger...</div>`;
-
-            // We can now filter the pre-loaded invoicesCache instead of querying again.
-            const studentInvoices = invoicesCache.filter(inv => inv.studentId === studentId).sort((a,b) => b.dueDate.toDate() - a.dueDate.toDate());
-            
-            const student = studentsCache.find(s => s.id === studentId);
-            let totalOutstanding = 0;
-            const outstandingInvoices = studentInvoices.filter(inv => inv.status !== 'Paid');
-            outstandingInvoices.forEach(inv => totalOutstanding += inv.balance);
-
-            let headerHtml = `<div class="student-ledger-header"><h3>Financial Ledger for ${student.name}</h3><p>Total Outstanding Balance: <strong>₹${totalOutstanding.toFixed(2)}</strong></p>${outstandingInvoices.length > 1 ? `<button class="btn btn-success" onclick="openBulkPaymentModal('${studentId}', ${totalOutstanding})">Pay All Outstanding Dues</button>` : ''}</div>`;
-            if (studentInvoices.length === 0) { studentLedgerContainer.innerHTML = headerHtml + '<p>No invoices have been generated for this student.</p>'; return; }
-
-            const invoicesHtml = studentInvoices.map(inv => {
-                const today = new Date(); today.setHours(0,0,0,0); const dueDate = inv.dueDate.toDate(); let status = inv.status; if (status === 'Due' && dueDate < today) status = 'Overdue';
-                return `<div class="item-card status-${status.toLowerCase()}"><div><p><strong>${inv.title}</strong></p><small>Due: ${dueDate.toLocaleDateString()} | Year: ${inv.academicYear}</small></div><div style="text-align:right;"><p style="margin:0;"><strong>Bal: ₹${inv.balance.toFixed(2)}</strong></p><small>Total: ₹${inv.totalAmount.toFixed(2)} | Paid: ₹${inv.amountPaid.toFixed(2)}</small></div><div style="display:flex; flex-direction:column; gap:0.5em; margin-left:1em;"><button class="btn btn-sm btn-primary" onclick="openPaymentModal('${inv.id}')">Record Payment</button><button class="btn btn-sm btn-edit" onclick="openEditInvoiceModal('${inv.id}')">Edit Invoice</button></div></div>`;
-            }).join('');
-            
-            studentLedgerContainer.innerHTML = headerHtml + invoicesHtml;
-        }
+        // --- STUDENT LEDGER LOGIC ---
+        function populateStudentDropdown() { /* Unchanged */ }
+        async function loadStudentLedger() { /* Unchanged */ }
+        function openBulkPaymentModal(studentId, totalDue) { /* Unchanged */ }
+        async function handleRecordBulkPayment(e) { /* Unchanged */ }
         
-        // Opens a modal for making a bulk payment against all outstanding invoices.
-        function openBulkPaymentModal(studentId, totalDue) {
-            const student = studentsCache.find(s => s.id === studentId);
-            paymentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('payment-modal')">&times;</span><h2>Bulk Payment for ${student.name}</h2><p>Total Outstanding Dues: <strong>₹${totalDue.toFixed(2)}</strong></p><form id="bulk-payment-form" data-student-id="${studentId}"><label>Amount Paid:</label><input type="number" name="amount" max="${totalDue}" min="1" required><label>Payment Date:</label><input type="date" name="date" required><label>Payment Method:</label><select name="method"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Other</option></select><button type="submit">Record Bulk Payment</button></form></div>`;
-            openModal('payment-modal');
-            document.getElementById('bulk-payment-form').addEventListener('submit', handleRecordBulkPayment);
-            document.querySelector('#bulk-payment-form input[name="date"]').valueAsDate = new Date();
-        }
+        // --- FEE STRUCTURE & CATEGORIES (UPGRADED) ---
+        async function loadFeeStructure() { /* Unchanged */ }
+        async function handleSaveStructure(e) { /* Unchanged */ }
+        function openEditCategoriesModal() { /* Unchanged */ }
+        async function handleSaveCategories() { /* Unchanged */ }
 
-        // Intelligently distributes a bulk payment across the oldest outstanding invoices first.
-        async function handleRecordBulkPayment(e) {
-            e.preventDefault();
-            let paymentAmount = Number(e.target.amount.value);
-            const studentId = e.target.dataset.studentId;
-            const paymentDetails = { date: new Date(e.target.date.value), method: e.target.method.value };
-            const outstandingInvoices = invoicesCache.filter(inv => inv.studentId === studentId && inv.status !== 'Paid').sort((a,b) => a.dueDate.toDate() - b.dueDate.toDate());
-            if (paymentAmount > outstandingInvoices.reduce((acc, inv) => acc + inv.balance, 0)) { alert("Payment amount cannot exceed the total outstanding balance."); return; }
-            const batch = db.batch();
-            for (const invoice of outstandingInvoices) {
-                if (paymentAmount <= 0) break;
-                const amountToPay = Math.min(paymentAmount, invoice.balance);
-                const newAmountPaid = invoice.amountPaid + amountToPay;
-                const newBalance = invoice.totalAmount - newAmountPaid;
-                const newStatus = newBalance <= 0 ? 'Paid' : 'Due';
-                const newPayment = { ...paymentDetails, amount: amountToPay };
-                batch.update(db.collection('invoices').doc(invoice.id), { amountPaid: newAmountPaid, balance: newBalance, status: newStatus, paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) });
-                paymentAmount -= amountToPay;
-            }
-            try { await batch.commit(); closeModal('payment-modal'); /* Real-time listener will refresh the ledger */ } 
-            catch(err) { alert(`Error processing bulk payment: ${err.message}`); }
-        }
+        // --- GENERATE INVOICES ---
+        async function handleGenerateInvoices(e) { /* Unchanged */ }
         
-        // --- FEE STRUCTURE, INVOICE GEN, PAYMENT MODAL FUNCTIONS ---
-        // These are unchanged from the previous, correct version and are placed here for completeness.
-        async function loadFeeStructure() { const selClass = structureClassSelect.value; feeCategoriesContainer.innerHTML = ''; document.getElementById('fee-categories-list').innerHTML = feeCategories.map(c=>`<li>${c}</li>`).join(''); if(!selClass)return; feeCategoriesContainer.innerHTML=feeCategories.map(c=>`<label>${c}:</label><input type="number" data-category="${c}" placeholder="Amount" min="0" value="0">`).join(''); const docId=`CLASS_${selClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`; const doc = await db.collection('feeStructures').doc(docId).get(); if(doc.exists){const d=doc.data(); for(const cat in d.fees){const i=feeCategoriesContainer.querySelector(`input[data-category="${cat}"]`); if(i)i.value=d.fees[cat];}}}
-        async function handleSaveStructure(e){e.preventDefault();const c=structureClassSelect.value;if(!c){alert('Please select a class.');return;}structureStatusEl.textContent='Saving...';const f={};let t=0;feeCategoriesContainer.querySelectorAll('input').forEach(i=>{const a=Number(i.value)||0;f[i.dataset.category]=a;t+=a;});const d={className:c,academicYear:CURRENT_ACADEMIC_YEAR,fees:f,total:t};const id=`CLASS_${c}_YEAR_${CURRENT_ACADEMIC_YEAR}`;try{await db.collection('feeStructures').doc(id).set(d);structureStatusEl.textContent='Saved!';}catch(err){structureStatusEl.textContent=`Error: ${err.message}`;}finally{setTimeout(()=>structureStatusEl.textContent='',3000);}}
-        function openEditCategoriesModal(){let cHtml=feeCategories.map(c=>`<div style="display:flex;gap:1em;align-items:center;margin-bottom:0.5em;"><input type="text" value="${c}" class="category-input"><button type="button" class="btn-delete btn-sm">X</button></div>`).join('');editCategoriesModal.innerHTML=`<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-categories-modal')">&times;</span><h2>Edit Fee Categories</h2><div id="edit-categories-list">${cHtml}</div><button type="button" id="add-category-btn" class="btn-primary" style="margin-left:0;">Add</button><hr><div style="text-align:right;"><button type="button" id="save-categories-btn" class="btn-success">Save</button></div></div>`;openModal('edit-categories-modal');document.getElementById('add-category-btn').onclick=()=>{document.getElementById('edit-categories-list').insertAdjacentHTML('beforeend',`<div style="display:flex;gap:1em;align-items:center;margin-bottom:0.5em;"><input type="text" placeholder="New" class="category-input"><button type="button" class="btn-delete btn-sm">X</button></div>`);};document.getElementById('edit-categories-list').onclick=e=>{if(e.target.classList.contains('btn-delete'))e.target.parentElement.remove();};document.getElementById('save-categories-btn').onclick=handleSaveCategories;}
-        async function handleSaveCategories(){const n=[];document.querySelectorAll('#edit-categories-list .category-input').forEach(i=>{const name=i.value.trim();if(name)n.push(name);});try{await db.collection('settings').doc('global').update({feeCategories:n});feeCategories=n;loadFeeStructure();closeModal('edit-categories-modal');}catch(err){alert(`Error: ${err.message}`);}}
-        async function handleGenerateInvoices(e){e.preventDefault();const c=generateClassSelect.value,t=document.getElementById('invoice-title').value,d=document.getElementById('invoice-due-date').value;if(!c||!t||!d){alert('Please fill all fields.');return;}if(!confirm(`Generate invoices titled "${t}" for ALL active students in Class ${c}?`))return;generateStatusEl.textContent='Generating...';try{const id=`CLASS_${c}_YEAR_${CURRENT_ACADEMIC_YEAR}`,doc=await db.collection('feeStructures').doc(id).get();if(!doc.exists)throw new Error(`Fee structure for Class ${c} not defined.`);const fs=doc.data(),ss=await db.collection('students').where('class','==',Number(c)).where('academicYear','==',CURRENT_ACADEMIC_YEAR).where('status','==','active').get();if(ss.empty)throw new Error('No active students found.');const b=db.batch();let ct=0;ss.forEach(d=>{const s={id:d.id,...d.data()},r=db.collection('invoices').doc();b.set(r,{studentId:s.id,studentName:s.name,class:Number(s.class),rollNo:s.rollNo,title:t,academicYear:CURRENT_ACADEMIC_YEAR,dueDate:new Date(d),totalAmount:fs.total,amountPaid:0,balance:fs.total,status:'Due',details:fs.fees,paymentHistory:[],adjustments:[]});ct++;});await b.commit();generateStatusEl.textContent=`Generated ${ct} invoices!`;generateInvoicesForm.reset();}catch(err){generateStatusEl.textContent=`Error: ${err.message}`;}finally{setTimeout(()=>generateStatusEl.textContent='',4000);}}
+        // --- PAYMENT & INVOICE EDITING (UPGRADED) ---
+        function openPaymentModal(invoiceId) { /* Unchanged */ }
+        async function handleRecordPayment(e) { /* Unchanged */ }
+        async function handleDeletePayment(invoiceId, paymentTimestamp) { /* Unchanged */ }
+        function openEditInvoiceModal(invoiceId) { /* Unchanged */ }
+        async function handleAddAdjustment(e) { /* Unchanged */ }
+
+        // --- UNMODIFIED HELPERS (FULL CODE) ---
+        function populateStudentDropdown() { const selectedClass = ledgerClassSelect.value; ledgerStudentSelect.innerHTML = '<option value="">-- Select Student --</option>'; studentLedgerContainer.innerHTML = '<p>Please select a student to view their ledger.</p>'; if (!selectedClass) { ledgerStudentSelect.disabled = true; return; } const studentsInClass = studentsCache.filter(s => s.class == selectedClass && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name)); studentsInClass.forEach(student => { ledgerStudentSelect.innerHTML += `<option value="${student.id}">${student.name} (${student.rollNo})</option>`; }); ledgerStudentSelect.disabled = false; }
+        async function loadStudentLedger() { const studentId = ledgerStudentSelect.value; if (!studentId) { studentLedgerContainer.innerHTML = '<p>Please select a student to view their ledger.</p>'; return; } studentLedgerContainer.innerHTML = `<div class="status-message">Loading financial ledger...</div>`; const studentInvoices = invoicesCache.filter(inv => inv.studentId === studentId).sort((a,b) => b.dueDate.toDate() - a.dueDate.toDate()); const student = studentsCache.find(s => s.id === studentId); let totalOutstanding = 0; const outstandingInvoices = studentInvoices.filter(inv => inv.status !== 'Paid'); outstandingInvoices.forEach(inv => totalOutstanding += inv.balance); let headerHtml = `<div class="student-ledger-header"><h3>Financial Ledger for ${student.name}</h3><p>Total Outstanding Balance: <strong>₹${totalOutstanding.toFixed(2)}</strong></p>${outstandingInvoices.length > 1 ? `<button class="btn btn-success" onclick="openBulkPaymentModal('${studentId}', ${totalOutstanding})">Pay All Outstanding Dues</button>` : ''}</div>`; if (studentInvoices.length === 0) { studentLedgerContainer.innerHTML = headerHtml + '<p>No invoices have been generated for this student.</p>'; return; } const invoicesHtml = studentInvoices.map(inv => { const today = new Date(); today.setHours(0,0,0,0); const dueDate = inv.dueDate.toDate(); let status = inv.status; if (status === 'Due' && dueDate < today) status = 'Overdue'; return `<div class="item-card status-${status.toLowerCase()}"><div><p><strong>${inv.title}</strong></p><small>Due: ${dueDate.toLocaleDateString()} | Year: ${inv.academicYear}</small></div><div style="text-align:right;"><p style="margin:0;"><strong>Bal: ₹${inv.balance.toFixed(2)}</strong></p><small>Total: ₹${inv.totalAmount.toFixed(2)} | Paid: ₹${inv.amountPaid.toFixed(2)}</small></div><div style="display:flex; flex-direction:column; gap:0.5em; margin-left:1em;"><button class="btn btn-sm btn-primary" onclick="openPaymentModal('${inv.id}')">Record Payment</button><button class="btn btn-sm btn-edit" onclick="openEditInvoiceModal('${inv.id}')">Edit Invoice</button></div></div>`; }).join(''); studentLedgerContainer.innerHTML = headerHtml + invoicesHtml; }
+        function openBulkPaymentModal(studentId, totalDue) { const student = studentsCache.find(s => s.id === studentId); paymentModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('payment-modal')">&times;</span><h2>Bulk Payment for ${student.name}</h2><p>Total Outstanding Dues: <strong>₹${totalDue.toFixed(2)}</strong></p><form id="bulk-payment-form" data-student-id="${studentId}"><label>Amount Paid:</label><input type="number" name="amount" max="${totalDue}" min="1" required><label>Payment Date:</label><input type="date" name="date" required><label>Payment Method:</label><select name="method"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Other</option></select><button type="submit">Record Bulk Payment</button></form></div>`; openModal('payment-modal'); document.getElementById('bulk-payment-form').addEventListener('submit', handleRecordBulkPayment); document.querySelector('#bulk-payment-form input[name="date"]').valueAsDate = new Date(); }
+        async function handleRecordBulkPayment(e) { e.preventDefault(); let paymentAmount = Number(e.target.amount.value); const studentId = e.target.dataset.studentId; const paymentDetails = { date: new Date(e.target.date.value), method: e.target.method.value }; const outstandingInvoices = invoicesCache.filter(inv => inv.studentId === studentId && inv.status !== 'Paid').sort((a,b) => a.dueDate.toDate() - b.dueDate.toDate()); if (paymentAmount > outstandingInvoices.reduce((acc, inv) => acc + inv.balance, 0)) { alert("Payment amount cannot exceed the total outstanding balance."); return; } const batch = db.batch(); for (const invoice of outstandingInvoices) { if (paymentAmount <= 0) break; const amountToPay = Math.min(paymentAmount, invoice.balance); const newAmountPaid = invoice.amountPaid + amountToPay; const newBalance = invoice.totalAmount - newAmountPaid; const newStatus = newBalance <= 0 ? 'Paid' : 'Due'; const newPayment = { ...paymentDetails, amount: amountToPay }; batch.update(db.collection('invoices').doc(invoice.id), { amountPaid: newAmountPaid, balance: newBalance, status: newStatus, paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) }); paymentAmount -= amountToPay; } try { await batch.commit(); closeModal('payment-modal'); } catch(err) { alert(`Error processing bulk payment: ${err.message}`); } }
+        async function loadFeeStructure() { const selectedClass = structureClassSelect.value; feeCategoriesContainer.innerHTML = ''; document.getElementById('fee-categories-list').innerHTML = feeCategories.map(cat => `<li>${cat}</li>`).join(''); if (!selectedClass) return; feeCategoriesContainer.innerHTML = feeCategories.map(cat => `<label>${cat}:</label><input type="number" data-category="${cat}" placeholder="Amount" min="0" value="0">`).join(''); const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`; const doc = await db.collection('feeStructures').doc(docId).get(); if (doc.exists) { const data = doc.data(); for (const category in data.fees) { const inputEl = feeCategoriesContainer.querySelector(`input[data-category="${category}"]`); if (inputEl) inputEl.value = data.fees[category]; } } }
+        async function handleSaveStructure(e) { e.preventDefault(); const selectedClass = structureClassSelect.value; if (!selectedClass) { alert('Please select a class.'); return; } structureStatusEl.textContent = 'Saving...'; const fees = {}; let total = 0; feeCategoriesContainer.querySelectorAll('input').forEach(input => { const amount = Number(input.value) || 0; fees[input.dataset.category] = amount; total += amount; }); const structureData = { className: selectedClass, academicYear: CURRENT_ACADEMIC_YEAR, fees, total }; const docId = `CLASS_${selectedClass}_YEAR_${CURRENT_ACADEMIC_YEAR}`; try { await db.collection('feeStructures').doc(docId).set(structureData); structureStatusEl.textContent = 'Structure saved successfully!'; } catch(err){ structureStatusEl.textContent = `Error: ${err.message}`; } finally { setTimeout(() => structureStatusEl.textContent = '', 3000); } }
+        function openEditCategoriesModal() { let cHtml = feeCategories.map(c => `<div style="display:flex;gap:1em;align-items:center;margin-bottom:0.5em;"><input type="text" value="${c}" class="category-input"><button type="button" class="btn-delete btn-sm">X</button></div>`).join(''); editCategoriesModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-categories-modal')">&times;</span><h2>Edit Fee Categories</h2><div id="edit-categories-list">${cHtml}</div><button type="button" id="add-category-btn" class="btn-primary" style="margin-left:0;">Add</button><hr><div style="text-align:right;"><button type="button" id="save-categories-btn" class="btn-success">Save</button></div></div>`; openModal('edit-categories-modal'); document.getElementById('add-category-btn').onclick = () => { document.getElementById('edit-categories-list').insertAdjacentHTML('beforeend', `<div style="display:flex;gap:1em;align-items:center;margin-bottom:0.5em;"><input type="text" placeholder="New" class="category-input"><button type="button" class="btn-delete btn-sm">X</button></div>`); }; document.getElementById('edit-categories-list').onclick = e => { if (e.target.classList.contains('btn-delete')) e.target.parentElement.remove(); }; document.getElementById('save-categories-btn').onclick = handleSaveCategories; }
+        async function handleSaveCategories() { const newCats = []; document.querySelectorAll('#edit-categories-list .category-input').forEach(i => { const name = i.value.trim(); if (name) newCats.push(name); }); try { await db.collection('settings').doc('global').update({feeCategories: newCats}); feeCategories = newCats; loadFeeStructure(); closeModal('edit-categories-modal'); } catch(err) { alert(`Error: ${err.message}`); } }
+        async function handleGenerateInvoices(e) { e.preventDefault(); const c=generateClassSelect.value,t=document.getElementById('invoice-title').value,d=document.getElementById('invoice-due-date').value;if(!c||!t||!d){alert('Please fill all fields.');return;}if(!confirm(`Generate invoices titled "${t}" for ALL active students in Class ${c}?`))return;generateStatusEl.textContent='Generating...';try{const id=`CLASS_${c}_YEAR_${CURRENT_ACADEMIC_YEAR}`,doc=await db.collection('feeStructures').doc(id).get();if(!doc.exists)throw new Error(`Fee structure for Class ${c} not defined.`);const fs=doc.data(),ss=await db.collection('students').where('class','==',Number(c)).where('academicYear','==',CURRENT_ACADEMIC_YEAR).where('status','==','active').get();if(ss.empty)throw new Error('No active students found.');const b=db.batch();let ct=0;ss.forEach(d=>{const s={id:d.id,...d.data()},r=db.collection('invoices').doc();b.set(r,{studentId:s.id,studentName:s.name,class:Number(s.class),rollNo:s.rollNo,title:t,academicYear:CURRENT_ACADEMIC_YEAR,dueDate:new Date(d),totalAmount:fs.total,amountPaid:0,balance:fs.total,status:'Due',details:fs.fees,paymentHistory:[],adjustments:[]});ct++;});await b.commit();generateStatusEl.textContent=`Generated ${ct} invoices!`;generateInvoicesForm.reset();}catch(err){generateStatusEl.textContent=`Error: ${err.message}`;}finally{setTimeout(()=>generateStatusEl.textContent='',4000);}}
         function openPaymentModal(id){const inv=invoicesCache.find(i=>i.id===id);if(!inv)return;let h='No payments.';if(inv.paymentHistory&&inv.paymentHistory.length>0){h=`<table class="payment-history-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th></th></tr></thead><tbody>`;inv.paymentHistory.forEach(p=>{h+=`<tr><td>${p.date.toDate().toLocaleDateString()}</td><td>₹${p.amount.toFixed(2)}</td><td>${p.method}</td><td style="text-align:right;"><button class="btn-delete btn-sm" onclick="handleDeletePayment('${inv.id}',${p.date.toMillis()})">X</button></td></tr>`;});h+=`</tbody></table>`;}paymentModal.innerHTML=`<div class="modal-content"><span class="close-btn" onclick="closeModal('payment-modal')">&times;</span><h2>Record Payment for ${inv.studentName}</h2><p>Invoice: ${inv.title} | Balance: ₹${inv.balance.toFixed(2)}</p><form id="record-payment-form" data-invoice-id="${inv.id}"><label>Amount Paid:</label><input type="number" name="amount" max="${inv.balance}" min="1" required><label>Payment Date:</label><input type="date" name="date" required><label>Payment Method:</label><select name="method"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Other</option></select><button type="submit">Record</button></form><hr style="margin:1.5em 0;"><h4>Payment History</h4>${h}</div>`;openModal('payment-modal');document.getElementById('record-payment-form').addEventListener('submit',handleRecordPayment);document.querySelector('#record-payment-form input[name="date"]').valueAsDate=new Date();}
-        async function handleRecordPayment(e){e.preventDefault();const id=e.target.dataset.invoiceId,inv=invoicesCache.find(i=>i.id===id),a=Number(e.target.amount.value);if(a>inv.balance){alert('Payment cannot exceed balance.');return;}const p={amount:a,date:new Date(e.target.date.value),method:e.target.method.value},pa=inv.amountPaid+a,b=inv.totalAmount-pa,s=b<=0?'Paid':'Due';try{await db.collection('invoices').doc(id).update({amountPaid:pa,balance:b,status:s,paymentHistory:firebase.firestore.FieldValue.arrayUnion(p)});closeModal('payment-modal');}catch(err){alert(`Error: ${err.message}`);}}
+        async function handleRecordPayment(e){e.preventDefault();const id=e.target.dataset.id,inv=invoicesCache.find(i=>i.id===id),a=Number(e.target.amount.value);if(a>inv.balance){alert('Payment cannot exceed balance.');return;}const p={amount:a,date:new Date(e.target.date.value),method:e.target.method.value},pa=inv.amountPaid+a,b=inv.totalAmount-pa,s=b<=0?'Paid':'Due';try{await db.collection('invoices').doc(id).update({amountPaid:pa,balance:b,status:s,paymentHistory:firebase.firestore.FieldValue.arrayUnion(p)});closeModal('payment-modal');}catch(err){alert(`Error: ${err.message}`);}}
         async function handleDeletePayment(id,ts){if(!confirm("Delete payment record?"))return;const ref=db.collection('invoices').doc(id),inv=invoicesCache.find(i=>i.id===id),p=inv.paymentHistory.find(p=>p.date.toMillis()===ts);if(!p){alert("Error: payment not found.");return;}const pa=inv.amountPaid-p.amount,b=inv.totalAmount-pa,s=b<=0?'Paid':'Due';try{await ref.update({amountPaid:pa,balance:b,status:s,paymentHistory:firebase.firestore.FieldValue.arrayRemove(p)});closeModal('payment-modal');}catch(err){alert(`Error: ${err.message}`);}}
         function openEditInvoiceModal(id){const inv=invoicesCache.find(i=>i.id===id);if(!inv)return;let h='No adjustments.';if(inv.adjustments&&inv.adjustments.length>0){h=`<table class="payment-history-table"><thead><tr><th>Date</th><th>Reason</th><th>Amount</th></tr></thead><tbody>`;inv.adjustments.forEach(a=>{h+=`<tr><td>${a.date.toDate().toLocaleDateString()}</td><td>${a.reason}</td><td>${a.amount>0?'+':''}₹${a.amount.toFixed(2)}</td></tr>`;});h+=`</tbody></table>`;}editInvoiceModal.innerHTML=`<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-invoice-modal')">&times;</span><h2>Edit Invoice for ${inv.studentName}</h2><p>Invoice: ${inv.title} | Current Total: ₹${inv.totalAmount.toFixed(2)}</p><form id="add-adjustment-form" data-invoice-id="${inv.id}"><label>Adjustment:</label><select name="type"><option value="concession">Concession (-)</option><option value="fine">Fine (+)</option></select><label>Amount:</label><input type="number" name="amount" min="1" required><label>Reason:</label><input type="text" name="reason" required><button type="submit">Add</button></form><hr style="margin:1.5em 0;"><h4>Adjustments</h4>${h}</div>`;openModal('edit-invoice-modal');document.getElementById('add-adjustment-form').addEventListener('submit',handleAddAdjustment);}
-        async function handleAddAdjustment(e){e.preventDefault();const id=e.target.dataset.invoiceId,inv=invoicesCache.find(i=>i.id===id);let a=Number(e.target.amount.value);const t=e.target.type.value,r=e.target.reason.value;if(t==='concession'){a=-a;}const adj={amount:a,reason:r,date:new Date()},ta=inv.totalAmount+a,b=ta-inv.amountPaid,s=b<=0?'Paid':'Due';try{await db.collection('invoices').doc(id).update({totalAmount:ta,balance:b,status:s,adjustments:firebase.firestore.FieldValue.arrayUnion(adj)});closeModal('edit-invoice-modal');}catch(err){alert(`Error: ${err.message}`);}}
+        async function handleAddAdjustment(e){e.preventDefault();const id=e.target.dataset.id,inv=invoicesCache.find(i=>i.id===id);let a=Number(e.target.amount.value);const t=e.target.type.value,r=e.target.reason.value;if(t==='concession'){a=-a;}const adj={amount:a,reason:r,date:new Date()},ta=inv.totalAmount+a,b=ta-inv.amountPaid,s=b<=0?'Paid':'Due';try{await db.collection('invoices').doc(id).update({totalAmount:ta,balance:b,status:s,adjustments:firebase.firestore.FieldValue.arrayUnion(adj)});closeModal('edit-invoice-modal');}catch(err){alert(`Error: ${err.message}`);}}
     </script>
 </body>
 </html>

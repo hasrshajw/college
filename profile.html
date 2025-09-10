@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>My Profile - College Management System</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 800px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn-logout { background-color: var(--danger-color); }
+        .btn-success { background-color: var(--success-color); }
+        .btn-primary { background-color: var(--primary-color); }
+        
+        .profile-section { margin-bottom: 2.5em; }
+        .profile-section h2 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; font-size: 1.5em; }
+        
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1em; }
+        .info-item { background: var(--light-bg); padding: 1em; border-radius: 5px; }
+        .info-item .label { font-size: 0.9em; color: #7f8c8d; display: block; margin-bottom: 0.25em; }
+        .info-item .value { font-size: 1.1em; font-weight: 500; }
+        
+        form { display: flex; flex-direction: column; gap: 1.2em; margin-top: 1.5em; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; font-size: 1em; }
+        textarea { resize: vertical; min-height: 80px; }
+        .form-actions { text-align: right; }
+        .status-message { font-style: italic; color: var(--success-color); }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info"><h1>My Profile</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <button id="logout-btn" class="btn btn-logout">Logout</button>
+        </div>
+        
+        <div id="profile-content">
+            <div class="profile-section">
+                <h2>Official Information</h2>
+                <div id="official-info" class="info-grid">
+                    <!-- Read-only info will be populated here -->
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h2>Personal Details</h2>
+                <form id="personal-details-form">
+                    <label for="contact-number">Contact Number:</label>
+                    <input type="tel" id="contact-number" name="contactNumber" placeholder="Enter your phone number">
+                    
+                    <label for="address">Address:</label>
+                    <textarea id="address" name="address" placeholder="Enter your mailing address"></textarea>
+                    
+                    <div class="form-actions">
+                        <span id="save-status" class="status-message"></span>
+                        <button type="submit" class="btn btn-success">Save Personal Details</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="profile-section">
+                <h2>Security</h2>
+                <p>To change your password, a secure reset link will be sent to your registered email address.</p>
+                <div class="form-actions">
+                    <span id="password-reset-status" class="status-message"></span>
+                    <button id="send-reset-email-btn" type="button" class="btn btn-primary">Send Password Reset Email</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        const firebaseConfig = { /* Your Config */ };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Global State
+        let currentUserRole = null;
+        let userProfileDocId = null;
+        let userProfileCollection = '';
+
+        // DOM Elements
+        const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
+        const officialInfoEl = document.getElementById('official-info');
+        const personalDetailsForm = document.getElementById('personal-details-form');
+        const saveStatusEl = document.getElementById('save-status');
+        const sendResetEmailBtn = document.getElementById('send-reset-email-btn');
+        const passwordResetStatusEl = document.getElementById('password-reset-status');
+        
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(async user => {
+            if (user) {
+                const userDoc = await db.collection('users').doc(user.email).get();
+                if (userDoc.exists && (userDoc.data().role === 'teacher' || userDoc.data().role === 'student')) {
+                    currentUserRole = userDoc.data().role;
+                    mainContainer.style.display = 'block';
+                    userEmailEl.textContent = user.email;
+                    await loadUserProfile(user.email);
+                } else {
+                    handleAuthError('Access Denied. Your role is not configured to view a profile.');
+                }
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
+        logoutBtn.onclick = () => auth.signOut();
+        
+        // --- DATA HANDLING ---
+        async function loadUserProfile(email) {
+            try {
+                userProfileCollection = (currentUserRole === 'teacher') ? 'teachers' : 'students';
+                const profileQuery = await db.collection(userProfileCollection).where('email', '==', email).limit(1).get();
+                
+                if (profileQuery.empty) {
+                    officialInfoEl.innerHTML = '<p>Your detailed profile has not been created by the administrator yet.</p>';
+                    personalDetailsForm.style.display = 'none'; // Hide form if no profile
+                    return;
+                }
+                
+                const profileDoc = profileQuery.docs[0];
+                userProfileDocId = profileDoc.id;
+                const profile = profileDoc.data();
+
+                // Render read-only official info
+                let officialHtml = `
+                    <div class="info-item"><span class="label">Name</span><span class="value">${profile.name}</span></div>
+                    <div class="info-item"><span class="label">Role</span><span class="value">${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)}</span></div>
+                    <div class="info-item"><span class="label">Email</span><span class="value">${profile.email}</span></div>
+                `;
+                if (currentUserRole === 'student') {
+                    officialHtml += `
+                        <div class="info-item"><span class="label">Class</span><span class="value">${profile.class}</span></div>
+                        <div class="info-item"><span class="label">Roll Number</span><span class="value">${profile.rollNo}</span></div>
+                        <div class="info-item"><span class="label">Academic Year</span><span class="value">${profile.academicYear}</span></div>
+                    `;
+                }
+                officialInfoEl.innerHTML = officialHtml;
+
+                // Populate editable personal details
+                personalDetailsForm.contactNumber.value = profile.contactNumber || '';
+                personalDetailsForm.address.value = profile.address || '';
+
+            } catch (error) {
+                console.error("Error loading profile:", error);
+                officialInfoEl.innerHTML = `<p style="color: var(--danger-color);">Error loading profile data.</p>`;
+            }
+        }
+
+        async function handleSavePersonalDetails(e) {
+            e.preventDefault();
+            if (!userProfileDocId) {
+                alert("Cannot save, profile not loaded correctly.");
+                return;
+            }
+            
+            saveStatusEl.textContent = 'Saving...';
+            const updatedData = {
+                contactNumber: personalDetailsForm.contactNumber.value.trim(),
+                address: personalDetailsForm.address.value.trim()
+            };
+
+            try {
+                await db.collection(userProfileCollection).doc(userProfileDocId).update(updatedData);
+                saveStatusEl.textContent = 'Details saved successfully!';
+            } catch (error) {
+                console.error("Error saving details:", error);
+                saveStatusEl.textContent = 'Error saving details!';
+                saveStatusEl.style.color = 'var(--danger-color)';
+            } finally {
+                setTimeout(() => {
+                    saveStatusEl.textContent = '';
+                    saveStatusEl.style.color = 'var(--success-color)';
+                }, 3000);
+            }
+        }
+
+        async function handleSendPasswordReset() {
+            const user = auth.currentUser;
+            if (!user) return;
+            
+            sendResetEmailBtn.disabled = true;
+            passwordResetStatusEl.textContent = 'Sending email...';
+            
+            try {
+                await auth.sendPasswordResetEmail(user.email);
+                passwordResetStatusEl.textContent = 'Reset link sent! Please check your inbox.';
+            } catch (error) {
+                console.error("Password Reset Error:", error);
+                passwordResetStatusEl.textContent = `Error: ${error.message}`;
+                passwordResetStatusEl.style.color = 'var(--danger-color)';
+            } finally {
+                setTimeout(() => {
+                    sendResetEmailBtn.disabled = false;
+                    passwordResetStatusEl.textContent = '';
+                    passwordResetStatusEl.style.color = 'var(--success-color)';
+                }, 5000);
+            }
+        }
+        
+        // --- EVENT LISTENERS ---
+        personalDetailsForm.addEventListener('submit', handleSavePersonalDetails);
+        sendResetEmailBtn.addEventListener('click', handleSendPasswordReset);
+
+    </script>
+</body>
+</html>

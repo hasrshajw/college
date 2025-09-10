@@ -92,7 +92,14 @@
 
     <script>
         // --- CONFIG & INITIALIZATION ---
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -126,9 +133,15 @@
                 window.location.href = 'index.html';
             }
         });
-        function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
+
+        function handleAuthError(message) {
+            alert(message);
+            auth.signOut().then(() => window.location.href = 'index.html');
+        }
+
         logoutBtn.onclick = () => auth.signOut();
 
+        // ** CRITICAL FIX **: The main initialization logic is now fully sequential.
         async function initializePage() {
             try {
                 await fetchGlobalSettings();
@@ -141,6 +154,7 @@
             }
         }
         
+        // Fetches central settings like the academic year and custom fee categories.
         async function fetchGlobalSettings() {
             const settingsRef = db.collection('settings').doc('global');
             const doc = await settingsRef.get();
@@ -222,11 +236,7 @@
             for (const category in studentFeeStructure) {
                 const assigned = studentFeeStructure[category] || 0;
                 const paid = paymentHistory.filter(p => p.category === category).reduce((sum, p) => sum + p.amountPaid, 0);
-                ledgerData[category] = {
-                    assigned: assigned,
-                    paid: paid,
-                    pending: assigned - paid
-                };
+                ledgerData[category] = { assigned, paid, pending: assigned - paid };
                 totalAssigned += assigned;
             }
 
@@ -238,12 +248,7 @@
                                     <tbody>`;
             for (const category in ledgerData) {
                 const item = ledgerData[category];
-                ledgerTableHtml += `<tr>
-                                        <td>${category}</td>
-                                        <td>₹${item.assigned.toLocaleString()}</td>
-                                        <td>₹${item.paid.toLocaleString()}</td>
-                                        <td>₹${item.pending.toLocaleString()}</td>
-                                    </tr>`;
+                ledgerTableHtml += `<tr><td>${category}</td><td>₹${item.assigned.toLocaleString()}</td><td>₹${item.paid.toLocaleString()}</td><td>₹${item.pending.toLocaleString()}</td></tr>`;
             }
             ledgerTableHtml += `</tbody></table>`;
             
@@ -273,7 +278,7 @@
                 const amountInput = paymentForm.amount;
                 // Dynamically update max amount based on selected category
                 amountInput.max = ledgerData[categorySelect.value].pending;
-                categorySelect.onchange = () => { amountInput.max = ledgerData[categorySelect.value].pending; };
+                categorySelect.onchange = () => { amountInput.max = ledgerData[categorySelect.value].pending; amountInput.value = ''; };
                 paymentForm.addEventListener('submit', handleAddPayment);
             }
         }
@@ -284,43 +289,15 @@
             const defaultFeeDocId = `CLASS_${student.class}_YEAR_${student.academicYear}`;
             const defaultStructure = feeStructuresCache[defaultFeeDocId]?.fees || {};
             const studentStructure = student.feeStructure || defaultStructure;
-            
             let formHtml = '';
-            feeCategories.forEach(cat => {
-                formHtml += `<label>${cat}:</label><input type="number" data-category="${cat}" value="${studentStructure[cat] || defaultStructure[cat] || 0}">`;
-            });
-
+            feeCategories.forEach(cat => { formHtml += `<label>${cat}:</label><input type="number" data-category="${cat}" value="${studentStructure[cat] || defaultStructure[cat] || 0}">`; });
             editFeeModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('edit-fee-modal')">&times;</span><h2>Edit Fee Structure for ${student.name}</h2><p><small>Customize fee components for this student. This will override class defaults.</small></p><form id="edit-student-fee-form" data-student-id="${studentId}">${formHtml}<button type="submit">Save Custom Structure</button></form></div>`;
             openModal('edit-fee-modal');
             document.getElementById('edit-student-fee-form').addEventListener('submit', handleUpdateStudentFee);
         }
-        async function handleUpdateStudentFee(e) {
-            e.preventDefault();
-            const studentId = e.target.dataset.studentId;
-            const newFeeStructure = {};
-            e.target.querySelectorAll('input').forEach(input => {
-                newFeeStructure[input.dataset.category] = Number(input.value) || 0;
-            });
-            try { await db.collection('students').doc(studentId).update({ feeStructure: newFeeStructure }); closeModal('edit-fee-modal'); } 
-            catch(err) { alert(`Error: ${err.message}`); }
-        }
-        async function handleAddPayment(e) {
-            e.preventDefault();
-            const studentId = e.target.dataset.studentId;
-            const form = e.target;
-            const newPayment = { paymentId: Date.now().toString(), amountPaid: Number(form.amount.value), category: form.category.value, mode: form.mode.value, date: new Date(), notes: form.notes.value.trim() };
-            try { await db.collection('students').doc(studentId).update({ paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) }); form.reset(); } 
-            catch(err) { alert(`Error: ${err.message}`); }
-        }
-        async function handleDeletePayment(studentId, paymentId) {
-            if (!confirm("Are you sure you want to delete this payment record?")) return;
-            const studentRef = db.collection('students').doc(studentId);
-            const student = studentsCache.find(s => s.id === studentId);
-            const paymentToDelete = (student.paymentHistory || []).find(p => p.paymentId === paymentId);
-            if (!paymentToDelete) { alert('Error: Could not find payment to delete.'); return; }
-            try { await studentRef.update({ paymentHistory: firebase.firestore.FieldValue.arrayRemove(paymentToDelete) }); } 
-            catch(err) { alert(`Error: ${err.message}`); }
-        }
+        async function handleUpdateStudentFee(e) { e.preventDefault(); const studentId = e.target.dataset.studentId; const newFeeStructure = {}; e.target.querySelectorAll('input').forEach(input => { newFeeStructure[input.dataset.category] = Number(input.value) || 0; }); try { await db.collection('students').doc(studentId).update({ feeStructure: newFeeStructure }); closeModal('edit-fee-modal'); } catch(err) { alert(`Error: ${err.message}`); } }
+        async function handleAddPayment(e) { e.preventDefault(); const studentId = e.target.dataset.studentId; const form = e.target; const newPayment = { paymentId: Date.now().toString(), amountPaid: Number(form.amount.value), category: form.category.value, mode: form.mode.value, date: new Date(), notes: form.notes.value.trim() }; try { await db.collection('students').doc(studentId).update({ paymentHistory: firebase.firestore.FieldValue.arrayUnion(newPayment) }); form.reset(); } catch(err) { alert(`Error: ${err.message}`); } }
+        async function handleDeletePayment(studentId, paymentId) { if (!confirm("Are you sure you want to delete this payment record?")) return; const studentRef = db.collection('students').doc(studentId); const student = studentsCache.find(s => s.id === studentId); const paymentToDelete = (student.paymentHistory || []).find(p => p.paymentId === paymentId); if (!paymentToDelete) { alert('Error: Could not find payment to delete.'); return; } try { await studentRef.update({ paymentHistory: firebase.firestore.FieldValue.arrayRemove(paymentToDelete) }); } catch(err) { alert(`Error: ${err.message}`); } }
 
         // --- COMPONENT-BASED DEFAULT FEE STRUCTURE ---
         function openDefaultFeesModal() {

@@ -22,6 +22,7 @@
         .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         .btn-logout { background-color: var(--danger-color); }
         .btn-success { background-color: var(--success-color); }
+        .btn-edit { background-color: var(--primary-color); }
         .content { display: none; }
         .content.active { display: block; }
         .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
@@ -29,7 +30,7 @@
         .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
         .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
 
-        .report-controls { display: flex; gap: 1em; padding: 1em; background-color: var(--light-bg); border-radius: 8px; margin-bottom: 1.5em; align-items: center; }
+        .report-controls { display: flex; gap: 1em; padding: 1em; background-color: var(--light-bg); border-radius: 8px; margin-bottom: 1.5em; align-items: center; flex-wrap: wrap; }
         .report-controls select, .report-controls input { min-width: 150px; }
         .report-container { background: white; padding: 1.5em; border: 1px solid #eee; border-radius: 8px; margin-top: 1em; }
         .report-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 1em; margin-bottom: 1em; }
@@ -39,6 +40,7 @@
         .report-table th, .report-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .report-table th { background-color: var(--light-bg); }
         .report-table tr:nth-child(even) { background-color: #f9f9f9; }
+        .status-message { padding: 1em; border-radius: 5px; text-align: center; background-color: #e2e3e5; color: #383d41; }
 
         @media print {
             body { background-color: white; padding: 0; margin: 0; }
@@ -102,7 +104,7 @@
         // Global State
         let CURRENT_ACADEMIC_YEAR = null;
         let currentUser = null;
-        let studentsCache = [], subjectsCache = [], examsCache = [];
+        let examsCache = [];
 
         // DOM Elements
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
@@ -127,7 +129,7 @@
         async function initializePage() {
             try {
                 await fetchGlobalSettings();
-                listenForData(); 
+                populateDropdowns(); 
                 setupEventListeners(); 
             } catch (error) {
                 document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ask the administrator to set the 'currentAcademicYear' in the system settings.</p>`;
@@ -145,8 +147,8 @@
         // UI Control
         function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
         
-        // --- DATA LOADING & DROPDOWN POPULATION ---
-        async function listenForData() {
+        // --- DATA LOADING & DROPDOWN POPULATION (ROLE-AWARE) ---
+        async function populateDropdowns() {
             if (!CURRENT_ACADEMIC_YEAR) return;
             db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => {
                 examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -154,8 +156,8 @@
             });
             if (currentUser.email === adminEmail) {
                 const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-                attClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
-                marksClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
+                attClassSelect.innerHTML = '<option value="">-- All Classes --</option>' + classOptions;
+                marksClassSelect.innerHTML = '<option value="">-- All Classes --</option>' + classOptions;
             } else {
                 const teacherSnap = await db.collection('teachers').where('email', '==', currentUser.email).limit(1).get();
                 if (!teacherSnap.empty) {
@@ -163,8 +165,8 @@
                     db.collection('subjects').where('teacherId', '==', teacherId).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => {
                         const myClasses = [...new Set(snap.docs.map(doc => doc.data().className))].sort((a,b) => a-b);
                         const classOptions = myClasses.map(c => `<option value="${c}">${c}</option>`).join('');
-                        attClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
-                        marksClassSelect.innerHTML = '<option value="">-- Select Class --</option>' + classOptions;
+                        attClassSelect.innerHTML = '<option value="">-- Your Classes --</option>' + classOptions;
+                        marksClassSelect.innerHTML = '<option value="">-- Your Classes --</option>' + classOptions;
                     });
                 }
             }
@@ -177,70 +179,6 @@
         }
 
         // --- ATTENDANCE REPORT LOGIC ---
-        async function generateAttendanceReport() { /* Unchanged from previous version */ }
-
-        // --- MARK SHEET LOGIC (WITH THE FIX) ---
-        async function generateMarksReport() {
-            const selectedClass = marksClassSelect.value;
-            const selectedExamId = marksExamSelect.value;
-            if (!selectedClass || !selectedExamId) { alert('Please select a class and an exam.'); return; }
-            
-            marksReportContainer.innerHTML = `<div class="status-message">Generating mark sheet...</div>`;
-
-            const selectedExam = examsCache.find(e => e.id === selectedExamId);
-            const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).get();
-            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-                .filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR))
-                .sort((a,b) => a.rollNo.localeCompare(b.rollNo));
-            
-            const relevantSubjects = Object.keys(selectedExam.marksStructure)
-                .filter(key => key.startsWith(`CLASS_${selectedClass}_`))
-                .map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
-            
-            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).get();
-            const marksMap = new Map();
-            marksSnap.forEach(doc => marksMap.set(doc.data().studentId, doc.data().marks));
-
-            let reportHtml = `
-                <div class="report-header">
-                    <h3>Mark Sheet: ${selectedExam.examName} - Class ${selectedClass}</h3>
-                    <div class="report-actions">
-                        <button class="btn btn-edit" onclick="printReport()">Print</button>
-                        <button class="btn btn-success" onclick="exportToCSV('marks-report-table', 'marksheet_class_${selectedClass}.csv')">Export to CSV</button>
-                    </div>
-                </div>
-                <table class="report-table" id="marks-report-table">
-                    <thead><tr><th>Roll No</th><th>Name</th>`;
-            relevantSubjects.forEach(sub => reportHtml += `<th>${sub.charAt(0) + sub.slice(1).toLowerCase()}</th>`); // Format header nicely
-            reportHtml += `</tr></thead><tbody>`;
-
-            students.forEach(student => {
-                reportHtml += `<tr><td>${student.rollNo}</td><td>${student.name}</td>`;
-                const studentMarks = marksMap.get(student.id) || {};
-                
-                // *** THE FIX: NORMALIZE KEYS BEFORE LOOKUP ***
-                // Create a case-insensitive version of the student's marks
-                const normalizedStudentMarks = {};
-                for (const key in studentMarks) {
-                    normalizedStudentMarks[key.toUpperCase()] = studentMarks[key];
-                }
-
-                relevantSubjects.forEach(sub => {
-                    // Look up the mark using the uppercase version of the subject name
-                    const mark = normalizedStudentMarks[sub.toUpperCase()];
-                    reportHtml += `<td>${mark !== undefined ? mark : '-'}</td>`;
-                });
-                reportHtml += `</tr>`;
-            });
-            reportHtml += `</tbody></table>`;
-            marksReportContainer.innerHTML = reportHtml;
-        }
-
-        // --- UTILITY FUNCTIONS ---
-        function printReport() { window.print(); }
-        function exportToCSV(tableId, filename) { /* Unchanged from previous version */ }
-        
-        // --- UNMODIFIED HELPERS FOR BREVITY (Paste the full versions from previous answer if needed) ---
         async function generateAttendanceReport() {
             const selectedClass = attClassSelect.value;
             const selectedMonth = attMonthSelect.value;
@@ -263,11 +201,46 @@
                 });
                 return { name: student.name, rollNo: student.rollNo, present, total, absentDates };
             });
-            let reportHtml = `<div class="report-header"><h3>Attendance for Class ${selectedClass} - ${new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('att-report-table', 'attendance_class_${selectedClass}.csv')">Export to CSV</button></div></div><table class="report-table" id="att-report-table"><thead><tr><th>Roll No</th><th>Name</th><th>Percentage</th><th>Present/Total</th><th>Absent Dates</th></tr></thead><tbody>`;
-            reportData.forEach(data => { const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 'N/A'; reportHtml += `<tr><td>${data.rollNo}</td><td>${data.name}</td><td>${percentage}%</td><td>${data.present} / ${data.total}</td><td>${data.absentDates.join(', ')}</td></tr>`; });
-            reportHtml += `</tbody></table>`;
+            let reportHtml = `<div class="report-container"><div class="report-header"><h3>Attendance for Class ${selectedClass} - ${new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('att-report-table', 'attendance_${selectedClass}.csv')">Export to CSV</button></div></div><table class="report-table" id="att-report-table"><thead><tr><th>Roll No</th><th>Name</th><th>Percentage</th><th>Present/Total</th><th>Absent Dates</th></tr></thead><tbody>`;
+            reportData.forEach(data => { const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 'N/A'; reportHtml += `<tr><td>${data.rollNo}</td><td>${data.name}</td><td>${percentage}%</td><td>${data.present} / ${data.total}</td><td>${data.absentDates.sort((a,b)=>a-b).join(', ')}</td></tr>`; });
+            reportHtml += `</tbody></table></div>`;
             attendanceReportContainer.innerHTML = reportHtml;
         }
+
+        // --- MARK SHEET LOGIC (WITH THE FIX) ---
+        async function generateMarksReport() {
+            const selectedClass = marksClassSelect.value;
+            const selectedExamId = marksExamSelect.value;
+            if (!selectedClass || !selectedExamId) { alert('Please select a class and an exam.'); return; }
+            marksReportContainer.innerHTML = `<div class="status-message">Generating mark sheet...</div>`;
+            const selectedExam = examsCache.find(e => e.id === selectedExamId);
+            const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).get();
+            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.rollNo.localeCompare(b.rollNo, undefined, {numeric: true}));
+            const relevantSubjects = Object.keys(selectedExam.marksStructure).filter(key => key.startsWith(`CLASS_${selectedClass}_`)).map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
+            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).get();
+            const marksMap = new Map();
+            marksSnap.forEach(doc => marksMap.set(doc.data().studentId, doc.data().marks));
+
+            let reportHtml = `<div class="report-container"><div class="report-header"><h3>Mark Sheet: ${selectedExam.examName} - Class ${selectedClass}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('marks-report-table', 'marksheet_${selectedClass}.csv')">Export to CSV</button></div></div><table class="report-table" id="marks-report-table"><thead><tr><th>Roll No</th><th>Name</th>`;
+            relevantSubjects.forEach(sub => reportHtml += `<th>${sub.charAt(0).toUpperCase() + sub.slice(1).toLowerCase()}</th>`);
+            reportHtml += `</tr></thead><tbody>`;
+            students.forEach(student => {
+                reportHtml += `<tr><td>${student.rollNo}</td><td>${student.name}</td>`;
+                const studentMarks = marksMap.get(student.id) || {};
+                const normalizedStudentMarks = {};
+                for (const key in studentMarks) { normalizedStudentMarks[key.toUpperCase()] = studentMarks[key]; }
+                relevantSubjects.forEach(sub => {
+                    const mark = normalizedStudentMarks[sub.toUpperCase()];
+                    reportHtml += `<td>${mark !== undefined ? mark : '-'}</td>`;
+                });
+                reportHtml += `</tr>`;
+            });
+            reportHtml += `</tbody></table></div>`;
+            marksReportContainer.innerHTML = reportHtml;
+        }
+
+        // --- UTILITY FUNCTIONS ---
+        function printReport() { window.print(); }
         function exportToCSV(tableId, filename) {
             const table = document.getElementById(tableId); if (!table) return; let csv = []; const rows = table.querySelectorAll("tr");
             for (const row of rows) {

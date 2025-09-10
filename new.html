@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reports - Admin & Teacher Dashboard</title>
+    <title>Teacher Dashboard - College Management System</title>
     <style>
         :root {
             --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
@@ -14,74 +14,76 @@
             justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
         }
         .container {
-            width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
+            width: 95%; max-width: 900px; background: white; padding: 2em; border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
-        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
         .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         .btn-logout { background-color: var(--danger-color); }
-        .btn-success { background-color: var(--success-color); }
         .btn-edit { background-color: var(--primary-color); }
-        .content { display: none; }
-        .content.active { display: block; }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        .controls-grid { display: flex; gap: 1em; margin-bottom: 2em; align-items: center; flex-wrap: wrap; }
+        .status-message { padding: 1em; border-radius: 5px; margin-top: 1em; text-align: center; background-color: #e2e3e5; color: #383d41; }
         .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
         .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 2px solid transparent; }
         .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
+        .content { display: none; }
+        .content.active { display: block; }
+        .sheet-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
+        .sheet-row > span { font-weight: 500; flex-basis: 50%; }
+        .student-link { cursor: pointer; color: var(--primary-color); text-decoration: underline; }
+        .sheet-row .input-group { flex-basis: 45%; text-align: right; }
+        .attendance-radios label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
+        .mark-entry-task { display: flex; justify-content: space-between; align-items: center; background: var(--light-bg); padding: 1em; border-radius: 5px; margin-bottom: 0.5em; }
         .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
-
-        .report-controls { display: flex; gap: 1em; padding: 1em; background-color: var(--light-bg); border-radius: 8px; margin-bottom: 1.5em; align-items: center; flex-wrap: wrap; }
-        .report-controls select, .report-controls input { min-width: 150px; }
-        .report-container { background: white; padding: 1.5em; border: 1px solid #eee; border-radius: 8px; margin-top: 1em; }
-        .report-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 1em; margin-bottom: 1em; }
-        .report-header h3 { margin: 0; }
-        .report-actions { display: flex; gap: 1em; }
-        .report-table { width: 100%; border-collapse: collapse; margin-top: 1em; font-size: 0.9em; }
-        .report-table th, .report-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .report-table th { background-color: var(--light-bg); }
-        .report-table tr:nth-child(even) { background-color: #f9f9f9; }
-        .status-message { padding: 1em; border-radius: 5px; text-align: center; background-color: #e2e3e5; color: #383d41; }
-
-        @media print {
-            body { background-color: white; padding: 0; margin: 0; }
-            .container { box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; }
-            .header, .tabs, .report-controls, .report-actions, .year-display { display: none !important; }
-            .report-container { border: none; padding: 0; margin: 0; }
-            .report-header h3 { font-size: 1.5em; }
-        }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; position: relative; }
+        .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; }
+        .modal-section h4 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; margin-top: 0; }
     </style>
 </head>
 <body>
     <div class="container" style="display: none;">
         <div id="app-header" class="header">
-            <div class="header-info"><h1>Reports Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
+            <div class="header-info"><h1 id="header-title">Teacher Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
             <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
         <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
 
         <div class="tabs">
-            <button class="tab-button active" onclick="showTab('attendance')">Attendance Reports</button>
-            <button class="tab-button" onclick="showTab('marks')">Mark Sheets</button>
+            <button class="tab-button active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab-button" onclick="showTab('attendance')">Attendance</button>
+            <button class="tab-button" id="marks-tab-btn" onclick="showTab('marks')" style="display: none;">Marks</button>
         </div>
 
-        <div id="attendance-content" class="content active">
-            <div class="report-controls">
-                <select id="att-class-select"><option value="">-- Select Class --</option></select>
-                <input type="month" id="att-month-select">
-                <button id="generate-att-report-btn" class="btn btn-success" style="margin-left: auto;">Generate Report</button>
+        <div id="dashboard-content" class="content active">
+            <h2>Welcome, <span id="teacher-name-display"></span>!</h2>
+            <p>This is your central dashboard. Your daily timetable and recent announcements will appear here.</p>
+            <!-- Timetable will be added here in a future update -->
+        </div>
+
+        <div id="attendance-content" class="content">
+            <h2>Attendance Management</h2>
+            <div class="controls-grid">
+                <select id="teacher-class-select-att"><option value="">-- Select Your Class --</option></select>
+                <input type="date" id="attendance-date">
+                <button id="load-attendance-btn" class="btn btn-edit">Load Students</button>
             </div>
-            <div id="attendance-report-container"></div>
+            <div id="attendance-sheet-container"></div>
         </div>
 
         <div id="marks-content" class="content">
-            <div class="report-controls">
-                <select id="marks-class-select"><option value="">-- Select Class --</option></select>
-                <select id="marks-exam-select"><option value="">-- Select Exam --</option></select>
-                <button id="generate-marks-report-btn" class="btn btn-success" style="margin-left: auto;">Generate Report</button>
-            </div>
-            <div id="marks-report-container"></div>
+            <div id="marks-task-list-container"><h2>Pending Mark Entry</h2></div>
+            <div id="marks-sheet-container" style="display: none;"></div>
         </div>
     </div>
+
+    <!-- Student Profile Modal -->
+    <div id="student-profile-modal" class="modal"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -99,38 +101,46 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
-        const adminEmail = "harshavardhanjw@gmail.com";
 
         // Global State
         let CURRENT_ACADEMIC_YEAR = null;
-        let currentUser = null;
-        let examsCache = [];
+        let currentTeacher = null, examsCache = [], mySubjectsCache = [];
 
         // DOM Elements
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
-        const attClassSelect = document.getElementById('att-class-select'), attMonthSelect = document.getElementById('att-month-select'), generateAttReportBtn = document.getElementById('generate-att-report-btn'), attendanceReportContainer = document.getElementById('attendance-report-container');
-        const marksClassSelect = document.getElementById('marks-class-select'), marksExamSelect = document.getElementById('marks-exam-select'), generateMarksReportBtn = document.getElementById('generate-marks-report-btn'), marksReportContainer = document.getElementById('marks-report-container');
+        const teacherNameDisplay = document.getElementById('teacher-name-display');
+        const attClassSelect = document.getElementById('teacher-class-select-att'), attDateEl = document.getElementById('attendance-date'), loadAttBtn = document.getElementById('load-attendance-btn'), attSheetContainer = document.getElementById('attendance-sheet-container');
+        const marksTabBtn = document.getElementById('marks-tab-btn'), marksTaskListContainer = document.getElementById('marks-task-list-container'), marksSheetContainer = document.getElementById('marks-sheet-container');
+        const studentProfileModal = document.getElementById('student-profile-modal');
         
         // --- AUTH & INITIALIZATION ---
         auth.onAuthStateChanged(async user => {
             if (user) {
-                currentUser = user;
                 const userDoc = await db.collection('users').doc(user.email).get();
-                if (user.email === adminEmail || (userDoc.exists && userDoc.data().role === 'teacher')) {
-                    mainContainer.style.display = 'block';
-                    userEmailEl.textContent = user.email;
-                    await initializePage();
-                } else { handleAuthError('Access Denied. You do not have permissions to view reports.'); }
+                if (userDoc.exists && userDoc.data().role === 'teacher') {
+                    const teacherSnap = await db.collection('teachers').where('email', '==', user.email).limit(1).get();
+                    if (!teacherSnap.empty) {
+                        currentTeacher = { id: teacherSnap.docs[0].id, ...teacherSnap.docs[0].data() };
+                        mainContainer.style.display = 'block';
+                        userEmailEl.textContent = user.email;
+                        teacherNameDisplay.textContent = currentTeacher.name;
+                        await initializeTeacherDashboard();
+                    } else { handleAuthError('Your teacher profile could not be found.'); }
+                } else { handleAuthError('Access Denied. You do not have teacher permissions.'); }
             } else { window.location.href = 'index.html'; }
         });
         function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
         logoutBtn.onclick = () => auth.signOut();
         
-        async function initializePage() {
+        async function initializeTeacherDashboard() {
             try {
                 await fetchGlobalSettings();
-                populateDropdowns(); 
-                setupEventListeners(); 
+                listenForExamsAndSubjects();
+                attDateEl.valueAsDate = new Date();
+                loadAttBtn.onclick = loadAttendanceSheet;
+                attSheetContainer.addEventListener('click', handleSheetClick);
+                marksSheetContainer.addEventListener('click', handleSheetClick);
+                marksTaskListContainer.addEventListener('click', handleTaskListClick);
             } catch (error) {
                 document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ask the administrator to set the 'currentAcademicYear' in the system settings.</p>`;
             }
@@ -144,112 +154,85 @@
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
 
-        // UI Control
+        // --- UI Control ---
         function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
         
-        // --- DATA LOADING & DROPDOWN POPULATION (ROLE-AWARE) ---
-        async function populateDropdowns() {
-            if (!CURRENT_ACADEMIC_YEAR) return;
-            db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => {
-                examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                marksExamSelect.innerHTML = '<option value="">-- Select Exam --</option>' + examsCache.map(e => `<option value="${e.id}">${e.examName}</option>`).join('');
-            });
-            if (currentUser.email === adminEmail) {
-                const classOptions = Array.from({length: 10}, (_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
-                attClassSelect.innerHTML = '<option value="">-- All Classes --</option>' + classOptions;
-                marksClassSelect.innerHTML = '<option value="">-- All Classes --</option>' + classOptions;
-            } else {
-                const teacherSnap = await db.collection('teachers').where('email', '==', currentUser.email).limit(1).get();
-                if (!teacherSnap.empty) {
-                    const teacherId = teacherSnap.docs[0].id;
-                    db.collection('subjects').where('teacherId', '==', teacherId).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => {
-                        const myClasses = [...new Set(snap.docs.map(doc => doc.data().className))].sort((a,b) => a-b);
-                        const classOptions = myClasses.map(c => `<option value="${c}">${c}</option>`).join('');
-                        attClassSelect.innerHTML = '<option value="">-- Your Classes --</option>' + classOptions;
-                        marksClassSelect.innerHTML = '<option value="">-- Your Classes --</option>' + classOptions;
-                    });
-                }
-            }
+        // Data Loading
+        function listenForExamsAndSubjects() {
+            db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => { examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); });
+            db.collection('subjects').where('teacherId', '==', currentTeacher.id).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); populateClassDropdowns(); });
         }
         
-        // --- EVENT LISTENERS ---
-        function setupEventListeners() {
-            generateAttReportBtn.addEventListener('click', generateAttendanceReport);
-            generateMarksReportBtn.addEventListener('click', generateMarksReport);
+        function populateClassDropdowns() {
+            const uniqueClasses = [...new Set(mySubjectsCache.map(s => s.className))].sort((a,b) => a-b);
+            let classOptions = '<option value="">-- Select Your Class --</option>';
+            uniqueClasses.forEach(c => classOptions += `<option value="${c}">${c}</option>`);
+            attClassSelect.innerHTML = classOptions;
         }
 
-        // --- ATTENDANCE REPORT LOGIC ---
-        async function generateAttendanceReport() {
+        // --- ATTENDANCE LOGIC (FIXED & FUNCTIONAL) ---
+        async function loadAttendanceSheet() {
             const selectedClass = attClassSelect.value;
-            const selectedMonth = attMonthSelect.value;
-            if (!selectedClass || !selectedMonth) { alert('Please select a class and a month.'); return; }
-            attendanceReportContainer.innerHTML = `<div class="status-message">Generating attendance report...</div>`;
-            const [year, month] = selectedMonth.split('-').map(Number);
-            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-            const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+            const selectedDate = attDateEl.value;
+            if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; }
+            attSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`;
             const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).get();
             const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name));
-            const attendanceSnap = await db.collection('attendance').where('class', '==', selectedClass).where('date', '>=', startDate).where('date', '<=', endDate).get();
-            let reportData = students.map(student => {
-                let present = 0, total = 0; let absentDates = [];
-                attendanceSnap.forEach(doc => {
-                    if (doc.data().records && doc.data().records[student.id]) {
-                        total++;
-                        if (doc.data().records[student.id] === 'present') present++;
-                        else absentDates.push(new Date(doc.data().date).getDate());
-                    }
-                });
-                return { name: student.name, rollNo: student.rollNo, present, total, absentDates };
-            });
-            let reportHtml = `<div class="report-container"><div class="report-header"><h3>Attendance for Class ${selectedClass} - ${new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('att-report-table', 'attendance_${selectedClass}.csv')">Export to CSV</button></div></div><table class="report-table" id="att-report-table"><thead><tr><th>Roll No</th><th>Name</th><th>Percentage</th><th>Present/Total</th><th>Absent Dates</th></tr></thead><tbody>`;
-            reportData.forEach(data => { const percentage = data.total > 0 ? Math.round((data.present / data.total) * 100) : 'N/A'; reportHtml += `<tr><td>${data.rollNo}</td><td>${data.name}</td><td>${percentage}%</td><td>${data.present} / ${data.total}</td><td>${data.absentDates.sort((a,b)=>a-b).join(', ')}</td></tr>`; });
-            reportHtml += `</tbody></table></div>`;
-            attendanceReportContainer.innerHTML = reportHtml;
+            if (students.length === 0) { attSheetContainer.innerHTML = `<p>No active students found in Class ${selectedClass} for the current academic year.</p>`; return; }
+            const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`;
+            const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get();
+            const records = attendanceDoc.exists ? attendanceDoc.data().records : {};
+            let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3>`;
+            students.forEach(s => { const status = records[s.id] || 'present'; sheetHtml += `<div class="sheet-row" data-student-id="${s.id}"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group attendance-radios"><input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status==='present'?'checked':''}> <label for="p_${s.id}">Present</label><input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status==='absent'?'checked':''}> <label for="a_${s.id}">Absent</label></div></div>`; });
+            sheetHtml += `<button id="save-att-btn" class="btn btn-success" style="margin-top:1.5em; margin-left:0;">Save Attendance</button>`;
+            attSheetContainer.innerHTML = sheetHtml;
+            document.getElementById('save-att-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate);
         }
-
-        // --- MARK SHEET LOGIC (WITH THE FIX) ---
-        async function generateMarksReport() {
-            const selectedClass = marksClassSelect.value;
-            const selectedExamId = marksExamSelect.value;
-            if (!selectedClass || !selectedExamId) { alert('Please select a class and an exam.'); return; }
-            marksReportContainer.innerHTML = `<div class="status-message">Generating mark sheet...</div>`;
-            const selectedExam = examsCache.find(e => e.id === selectedExamId);
-            const studentSnap = await db.collection('students').where('class', '==', Number(selectedClass)).get();
-            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.rollNo.localeCompare(b.rollNo, undefined, {numeric: true}));
-            const relevantSubjects = Object.keys(selectedExam.marksStructure).filter(key => key.startsWith(`CLASS_${selectedClass}_`)).map(key => key.replace(`CLASS_${selectedClass}_`, '').replace(/_/g, ' '));
-            const marksSnap = await db.collection('marks').where('examId', '==', selectedExamId).get();
-            const marksMap = new Map();
-            marksSnap.forEach(doc => marksMap.set(doc.data().studentId, doc.data().marks));
-
-            let reportHtml = `<div class="report-container"><div class="report-header"><h3>Mark Sheet: ${selectedExam.examName} - Class ${selectedClass}</h3><div class="report-actions"><button class="btn btn-edit" onclick="printReport()">Print</button><button class="btn btn-success" onclick="exportToCSV('marks-report-table', 'marksheet_${selectedClass}.csv')">Export to CSV</button></div></div><table class="report-table" id="marks-report-table"><thead><tr><th>Roll No</th><th>Name</th>`;
-            relevantSubjects.forEach(sub => reportHtml += `<th>${sub.charAt(0).toUpperCase() + sub.slice(1).toLowerCase()}</th>`);
-            reportHtml += `</tr></thead><tbody>`;
-            students.forEach(student => {
-                reportHtml += `<tr><td>${student.rollNo}</td><td>${student.name}</td>`;
-                const studentMarks = marksMap.get(student.id) || {};
-                const normalizedStudentMarks = {};
-                for (const key in studentMarks) { normalizedStudentMarks[key.toUpperCase()] = studentMarks[key]; }
-                relevantSubjects.forEach(sub => {
-                    const mark = normalizedStudentMarks[sub.toUpperCase()];
-                    reportHtml += `<td>${mark !== undefined ? mark : '-'}</td>`;
-                });
-                reportHtml += `</tr>`;
-            });
-            reportHtml += `</tbody></table></div>`;
-            marksReportContainer.innerHTML = reportHtml;
+        async function saveAttendance(docId, aClass, aDate) {
+            const saveBtn = document.getElementById('save-att-btn');
+            saveBtn.disabled = true;
+            const records = {};
+            document.querySelectorAll('#attendance-sheet-container .sheet-row').forEach(row => { records[row.dataset.studentId] = document.querySelector(`input[name="s_${row.dataset.studentId}"]:checked`).value; });
+            try { await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records, academicYear: CURRENT_ACADEMIC_YEAR }); alert('Attendance saved!'); } 
+            catch(err) { alert(`Error: ${err.message}`); } finally { saveBtn.disabled = false; }
         }
+        
+        // --- MARKS ENTRY LOGIC ---
+        function renderMarksEntryTaskList() { if (examsCache.length === 0 || mySubjectsCache.length === 0) { marksTaskListContainer.innerHTML = '<h2>Pending Mark Entry</h2><p>No mark entry tasks available.</p>'; marksTabBtn.style.display = 'none'; return; } marksTabBtn.style.display = 'inline-block'; let html = '<h2>Pending Mark Entry</h2>'; let taskCount = 0; examsCache.forEach(exam => { let examHtml = ''; mySubjectsCache.forEach(subject => { const marksKey = `CLASS_${subject.className}_${subject.subjectName.replace(/\s+/g, '_').toUpperCase()}`; if (exam.marksStructure[marksKey]) { taskCount++; examHtml += `<div class="mark-entry-task"><span><strong>Class ${subject.className}</strong> - ${subject.subjectName}</span><button class="btn btn-sm btn-edit enter-marks-btn" data-exam-id="${exam.id}" data-class-name="${subject.className}" data-subject-name="${subject.subjectName}">Enter Marks</button></div>`; } }); if (examHtml) { html += `<div class="exam-group"><h3>${exam.examName}</h3>${examHtml}</div>`; } }); if (taskCount === 0) { html += '<p>No subjects assigned to you are part of the created exams.</p>'; } marksTaskListContainer.innerHTML = html; }
+        function handleTaskListClick(event) { if (event.target.classList.contains('enter-marks-btn')) { const { examId, className, subjectName } = event.target.dataset; loadMarksEntrySheet(examId, className, subjectName); } }
+        async function loadMarksEntrySheet(examId, className, subjectName) { marksTaskListContainer.style.display = 'none'; marksSheetContainer.style.display = 'block'; marksSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`; const selectedExam = examsCache.find(e => e.id === examId); const marksKey = `CLASS_${className}_${subjectName.replace(/\s+/g, '_').toUpperCase()}`; const maxMarks = selectedExam.marksStructure[marksKey]; const studentSnap = await db.collection('students').where('class', '==', Number(className)).get(); const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(s => (s.status === 'active' || !s.status) && (!s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR)).sort((a,b) => a.name.localeCompare(b.name)); const studentIds = students.map(s => s.id); if (studentIds.length === 0) { marksSheetContainer.innerHTML = `<p>No active students in this class.</p><button id="back-to-list-btn" class="btn btn-edit">Back to List</button>`; document.getElementById('back-to-list-btn').onclick = () => { marksSheetContainer.style.display = 'none'; marksSheetContainer.innerHTML = ''; marksTaskListContainer.style.display = 'block'; }; return; } const marksPromises = studentIds.map(id => db.collection('marks').doc(`${examId}_${id}`).get()); const marksDocs = await Promise.all(marksPromises); const marksMap = new Map(marksDocs.filter(doc => doc.exists).map(doc => [doc.id.split('_')[1], doc.data().marks])); let sheetHtml = `<h3>Marks for ${subjectName} (Max: ${maxMarks})</h3><p><strong>Exam:</strong> ${selectedExam.examName} | <strong>Class:</strong> ${className}</p>`; students.forEach(s => { const existingMarks = marksMap.get(s.id); const currentMark = existingMarks && existingMarks[subjectName] !== undefined ? existingMarks[subjectName] : ''; sheetHtml += `<div class="sheet-row" data-student-id="${s.id}" data-student-name="${s.name}"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group"><input type="number" min="0" max="${maxMarks}" value="${currentMark}" placeholder="N/A"></div></div>`; }); sheetHtml += `<div style="margin-top:1.5em; display:flex; gap:1em;"><button id="save-marks-btn" class="btn btn-success" style="margin-left:0;">Save Marks</button><button id="back-to-list-btn" class="btn btn-edit">Back to List</button></div>`; marksSheetContainer.innerHTML = sheetHtml; document.getElementById('save-marks-btn').onclick = () => saveMarks(examId, className, subjectName); document.getElementById('back-to-list-btn').onclick = () => { marksSheetContainer.style.display = 'none'; marksSheetContainer.innerHTML = ''; marksTaskListContainer.style.display = 'block'; }; }
+        async function saveMarks(examId, className, subjectName) { const saveButton = document.getElementById('save-marks-btn'); saveButton.textContent = 'Saving...'; saveButton.disabled = true; const batch = db.batch(); const selectedExam = examsCache.find(e => e.id === examId); document.querySelectorAll('#marks-sheet-container .sheet-row').forEach(row => { const studentId = row.dataset.studentId, studentName = row.dataset.studentName; const marksValue = row.querySelector('input[type="number"]').value; const docRef = db.collection('marks').doc(`${examId}_${studentId}`); let marksUpdate; const normalizedSubjectName = subjectName.charAt(0).toUpperCase() + subjectName.slice(1); if (marksValue !== '') { marksUpdate = { [normalizedSubjectName]: parseInt(marksValue) }; } else { marksUpdate = { [normalizedSubjectName]: firebase.firestore.FieldValue.delete() }; } batch.set(docRef, { examId: examId, examName: selectedExam.examName, studentId: studentId, studentName: studentName, class: className, academicYear: CURRENT_ACADEMIC_YEAR, marks: marksUpdate }, { merge: true }); }); try { await batch.commit(); alert('Marks saved successfully!'); } catch (error) { alert(`Error saving marks: ${error.message}`); } finally { saveButton.textContent = 'Save Marks'; saveButton.disabled = false; } }
 
-        // --- UTILITY FUNCTIONS ---
-        function printReport() { window.print(); }
-        function exportToCSV(tableId, filename) {
-            const table = document.getElementById(tableId); if (!table) return; let csv = []; const rows = table.querySelectorAll("tr");
-            for (const row of rows) {
-                const cols = row.querySelectorAll("td, th"); const rowData = [];
-                for (const col of cols) { let data = col.innerText.replace(/"/g, '""'); if (data.includes(',')) data = `"${data}"`; rowData.push(data); }
-                csv.push(rowData.join(","));
+        // --- STUDENT PROFILE MODAL ---
+        function handleSheetClick(event) {
+            if (event.target.classList.contains('student-link') && event.target.dataset.studentId) {
+                openStudentProfileModal(event.target.dataset.studentId);
             }
-            const csvFile = new Blob([csv.join("\n")], {type: "text/csv"});
-            const downloadLink = document.createElement("a"); downloadLink.download = filename; downloadLink.href = window.URL.createObjectURL(csvFile); downloadLink.style.display = "none"; document.body.appendChild(downloadLink); downloadLink.click(); document.body.removeChild(downloadLink);
+        }
+        async function openStudentProfileModal(studentId) {
+            studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><div class="status-message">Loading student profile...</div></div>`;
+            openModal('student-profile-modal');
+            try {
+                const studentDoc = await db.collection('students').doc(studentId).get();
+                if (!studentDoc.exists) throw new Error('Student not found.');
+                const student = studentDoc.data();
+                const attendanceQuery = await db.collection('attendance').where('academicYear', '==', student.academicYear).get();
+                const totalDays = attendanceQuery.docs.filter(doc => doc.data().records && doc.data().records[studentId]).length;
+                const presentDays = attendanceQuery.docs.filter(doc => doc.data().records && doc.data().records[studentId] === 'present').length;
+                const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+                const marksQuery = await db.collection('marks').where('studentId', '==', studentId).where('academicYear', '==', student.academicYear).get();
+                let marksHtml = 'No marks entered yet.';
+                if (!marksQuery.empty) {
+                    marksHtml = '<ul>';
+                    marksQuery.forEach(doc => { const markData = doc.data(); for (const subject in markData.marks) { marksHtml += `<li><strong>${markData.examName} - ${subject}:</strong> ${markData.marks[subject]}</li>`; } });
+                    marksHtml += '</ul>';
+                }
+                studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><h2>${student.name}</h2><p><strong>Class:</strong> ${student.class} | <strong>Roll No:</strong> ${student.rollNo}</p><div class="modal-grid"><div class="modal-section"><h4>Attendance Summary</h4><p>${attendancePercentage}% (${presentDays} of ${totalDays} days)</p></div><div class="modal-section"><h4>Recent Marks</h4>${marksHtml}</div></div></div>`;
+            } catch(err) {
+                studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><p>Error loading profile: ${err.message}</p></div>`;
+            }
         }
     </script>
 </body>

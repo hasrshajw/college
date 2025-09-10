@@ -77,7 +77,6 @@
         <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
         
         <div class="dashboard-grid">
-            <!-- Row 1 -->
             <a href="manage-students.html" class="dashboard-card">
                 <div>
                     <div class="card-header">
@@ -88,13 +87,13 @@
                 </div>
                 <div class="card-stat" id="student-count">...</div>
             </a>
-            <a href="manage-teachers.html" class="dashboard-card">
+            <a href="manage-roles.html" class="dashboard-card">
                 <div>
                     <div class="card-header">
                          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                        <h2>Teachers</h2>
+                        <h2>Roles & Staff</h2>
                     </div>
-                    <p>Add new teachers, update their details, and manage system roles.</p>
+                    <p>Assign roles and manage all non-student user accounts.</p>
                 </div>
                 <div class="card-stat" id="teacher-count">...</div>
             </a>
@@ -114,12 +113,20 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         <h2>Exams</h2>
                     </div>
-                    <p>Create and edit exam units and configure their marks structure.</p>
+                    <p>Create and publish exam units and configure their marks structure.</p>
                 </div>
                 <div class="card-stat" id="exam-count">...</div>
             </a>
-
-            <!-- Row 2 - New Navigation Links -->
+            <a href="manage-fees.html" class="dashboard-card">
+                <div>
+                   <div class="card-header">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                       <h2>Fees</h2>
+                   </div>
+                   <p>Define fee structures, generate invoices, and track payments.</p>
+               </div>
+                <div class="card-stat" id="invoice-count">...</div>
+           </a>
             <a href="manage-timetables.html" class="dashboard-card">
                  <div>
                     <div class="card-header">
@@ -150,17 +157,7 @@
                 </div>
                  <div class="card-stat">View</div>
             </a>
-            <a href="admin-tools.html" class="dashboard-card">
-                <div>
-                    <div class="card-header">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                        <h2>System Tools</h2>
-                    </div>
-                    <p>Perform critical operations like year-end promotion and bulk data imports.</p>
-                </div>
-                 <div class="card-stat"><span class="subtext">Advanced</span>Tools</div>
-            </a>
-            <a href="archived-students.html" class="dashboard-card">
+             <a href="archived-students.html" class="dashboard-card">
                  <div>
                     <div class="card-header">
                         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
@@ -170,7 +167,7 @@
                 </div>
                  <div class="card-stat" id="archived-count">...</div>
             </a>
-             <a href="manage-settings.html" class="dashboard-card">
+            <a href="manage-settings.html" class="dashboard-card">
                  <div>
                     <div class="card-header">
                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
@@ -179,6 +176,16 @@
                     <p>Configure the academic year, grading policies, and school information.</p>
                 </div>
                  <div class="card-stat">Configure</div>
+            </a>
+             <a href="admin-tools.html" class="dashboard-card">
+                <div>
+                    <div class="card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <h2>System Tools</h2>
+                    </div>
+                    <p>Perform critical operations like year-end promotion and bulk data imports.</p>
+                </div>
+                 <div class="card-stat"><span class="subtext">Advanced</span>Tools</div>
             </a>
         </div>
     </div>
@@ -244,6 +251,7 @@
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
+        // Fetches statistics for all dashboard cards.
         async function fetchDashboardStats() {
             if (!CURRENT_ACADEMIC_YEAR) return;
 
@@ -252,19 +260,22 @@
             const subjectCountEl = document.getElementById('subject-count');
             const examCountEl = document.getElementById('exam-count');
             const noticeCountEl = document.getElementById('notice-count');
+            const invoiceCountEl = document.getElementById('invoice-count');
             const archivedCountEl = document.getElementById('archived-count');
 
             try {
-                const [studentSnap, teacherSnap, subjectSnap, examSnap, noticeSnap, archivedSnap] = await Promise.all([
-                    db.collection('students').get(), // Get all students for accurate filtering
+                // Fetch all data concurrently for maximum performance
+                const [studentSnap, teacherSnap, subjectSnap, examSnap, noticeSnap, archivedSnap, invoiceSnap] = await Promise.all([
+                    db.collection('students').get(),
                     db.collection('teachers').get(),
-                    db.collection('subjects').get(), // Get all subjects for filtering
-                    db.collection('exams').get(),    // Get all exams for filtering
+                    db.collection('subjects').get(),
+                    db.collection('exams').get(),
                     db.collection('notices').get(),
-                    db.collection('students').where('status', 'in', ['graduated', 'Left School']).get()
+                    db.collection('students').where('status', 'in', ['graduated', 'Left School']).get(),
+                    db.collection('invoices').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).get()
                 ]);
 
-                // Filter in JS for backward compatibility and accuracy
+                // Filter data in JavaScript for backward compatibility and accuracy
                 const activeStudents = studentSnap.docs.filter(doc => {
                     const data = doc.data();
                     return (data.status === 'active' || !data.status) && (!data.academicYear || data.academicYear === CURRENT_ACADEMIC_YEAR);
@@ -272,17 +283,21 @@
                 const currentSubjects = subjectSnap.docs.filter(doc => !doc.data().academicYear || doc.data().academicYear === CURRENT_ACADEMIC_YEAR);
                 const currentExams = examSnap.docs.filter(doc => !doc.data().academicYear || doc.data().academicYear === CURRENT_ACADEMIC_YEAR);
 
+                // Update the UI with the final counts
                 studentCountEl.textContent = activeStudents.length;
                 teacherCountEl.textContent = teacherSnap.size;
                 subjectCountEl.textContent = currentSubjects.length;
                 examCountEl.textContent = currentExams.length;
                 noticeCountEl.textContent = noticeSnap.size;
+                invoiceCountEl.textContent = invoiceSnap.size;
                 archivedCountEl.textContent = archivedSnap.size;
 
             } catch (error) {
                 console.error("Error fetching dashboard stats:", error);
-                // Display error state on cards
-                [studentCountEl, teacherCountEl, subjectCountEl, examCountEl, noticeCountEl, archivedCountEl].forEach(el => el.textContent = 'Error');
+                // In case of an error, update cards to show an error state
+                [studentCountEl, teacherCountEl, subjectCountEl, examCountEl, noticeCountEl, invoiceCountEl, archivedCountEl].forEach(el => {
+                    if(el) el.textContent = 'Error';
+                });
             }
         }
     </script>

@@ -166,7 +166,7 @@
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
         
-        // Data Loading
+        // --- Data Loading ---
         function listenForData() {
             db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).orderBy('createdAt', 'desc').onSnapshot(snap => { examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); });
             db.collection('subjects').where('teacherId', '==', currentTeacher.id).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); populateClassDropdowns(); renderDailyTimetable(); });
@@ -203,14 +203,14 @@
             timetableContainer.innerHTML = tableHtml;
         }
 
-        // --- ATTENDANCE LOGIC (FIXED & FUNCTIONAL) ---
+        // --- ATTENDANCE LOGIC (FULLY FUNCTIONAL) ---
         async function loadAttendanceSheet() {
             const selectedClass = attClassSelect.value;
             const selectedDate = attDateEl.value;
             if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; }
             attSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`;
             
-            // ** CRITICAL FIX: The query must filter by academic year AND class **
+            // ** CRITICAL FIX **: Correctly query for active students in the current academic year for the selected class.
             const studentSnap = await db.collection('students')
                 .where('class', '==', Number(selectedClass))
                 .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
@@ -238,7 +238,7 @@
             catch(err) { alert(`Error: ${err.message}`); } finally { saveBtn.disabled = false; }
         }
         
-        // --- MARKS ENTRY LOGIC (FIXED & FUNCTIONAL) ---
+        // --- MARKS ENTRY LOGIC (FULLY FUNCTIONAL) ---
         function renderMarksEntryTaskList() { if (examsCache.length === 0 || mySubjectsCache.length === 0) { marksTaskListContainer.innerHTML = '<h2>Pending Mark Entry</h2><p>No mark entry tasks available.</p>'; marksTabBtn.style.display = 'none'; return; } marksTabBtn.style.display = 'inline-block'; let html = '<h2>Pending Mark Entry</h2>'; let taskCount = 0; examsCache.forEach(exam => { let examHtml = ''; mySubjectsCache.forEach(subject => { const marksKey = `CLASS_${subject.className}_${subject.subjectName.replace(/\s+/g, '_').toUpperCase()}`; if (exam.marksStructure[marksKey]) { taskCount++; examHtml += `<div class="mark-entry-task"><span><strong>Class ${subject.className}</strong> - ${subject.subjectName}</span><button class="btn btn-sm btn-edit enter-marks-btn" data-exam-id="${exam.id}" data-class-name="${subject.className}" data-subject-name="${subject.subjectName}">Enter Marks</button></div>`; } }); if (examHtml) { html += `<div class="exam-group"><h3>${exam.examName}</h3>${examHtml}</div>`; } }); if (taskCount === 0) { html += '<p>No subjects assigned to you are part of the created exams.</p>'; } marksTaskListContainer.innerHTML = html; }
         function handleTaskListClick(event) { if (event.target.classList.contains('enter-marks-btn')) { const { examId, className, subjectName } = event.target.dataset; loadMarksEntrySheet(examId, className, subjectName); } }
         async function loadMarksEntrySheet(examId, className, subjectName) {

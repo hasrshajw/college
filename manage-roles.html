@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Roles & Teachers - Admin Dashboard</title>
+    <title>Manage Roles & Staff - Admin Dashboard</title>
     <style>
         :root {
             --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
@@ -80,7 +80,14 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -116,37 +123,33 @@
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
-        // --- DATA LISTENER ---
+        // --- DATA LISTENER (ROBUST VERSION) ---
         // Fetches BOTH users with roles and pending users, then combines them into one master list.
-        async function listenForAllUsers() {
-            const usersRef = db.collection('users');
-            const pendingRef = db.collection('pending_users');
+        function listenForAllUsers() {
+            // Use Promise.all to listen to both collections simultaneously
+            Promise.all([
+                db.collection('users').get(),
+                db.collection('pending_users').get()
+            ]).then(([usersSnap, pendingSnap]) => {
+                const usersWithRoles = usersSnap.docs.map(doc => ({ email: doc.id, ...doc.data() }));
+                const pendingUsers = pendingSnap.docs.map(doc => ({ email: doc.id, ...doc.data(), role: 'pending' }));
+                
+                // Combine and de-duplicate using a Map
+                const allUsersMap = new Map();
+                usersWithRoles.forEach(user => allUsersMap.set(user.email, user));
+                pendingUsers.forEach(user => {
+                    if (!allUsersMap.has(user.email)) {
+                        allUsersMap.set(user.email, user);
+                    }
+                });
+                
+                allUsersCache = Array.from(allUsersMap.values()).sort((a,b) => a.email.localeCompare(b.email));
+                filterAndRenderUsers();
+            });
 
-            // Listen to both collections in parallel
-            usersRef.onSnapshot(async snap => {
-                const usersWithRoles = snap.docs.map(doc => ({ email: doc.id, ...doc.data(), status: 'assigned' }));
-                const pendingSnap = await pendingRef.get();
-                const pendingUsers = pendingSnap.docs.map(doc => ({ email: doc.id, ...doc.data(), role: 'pending', status: 'pending' }));
-                
-                // Combine and remove duplicates (in case a user is in both lists temporarily)
-                const allUsersMap = new Map();
-                [...usersWithRoles, ...pendingUsers].forEach(user => allUsersMap.set(user.email, user));
-                allUsersCache = Array.from(allUsersMap.values()).sort((a,b) => a.email.localeCompare(b.email));
-                
-                filterAndRenderUsers();
-            });
-            
-            pendingRef.onSnapshot(async snap => {
-                const pendingUsers = snap.docs.map(doc => ({ email: doc.id, ...doc.data(), role: 'pending', status: 'pending' }));
-                const usersSnap = await usersRef.get();
-                const usersWithRoles = usersSnap.docs.map(doc => ({ email: doc.id, ...doc.data(), status: 'assigned' }));
-                
-                const allUsersMap = new Map();
-                [...usersWithRoles, ...pendingUsers].forEach(user => allUsersMap.set(user.email, user));
-                allUsersCache = Array.from(allUsersMap.values()).sort((a,b) => a.email.localeCompare(b.email));
-                
-                filterAndRenderUsers();
-            });
+            // Set up real-time listeners to refresh the data when anything changes
+            db.collection('users').onSnapshot(() => listenForAllUsers());
+            db.collection('pending_users').onSnapshot(() => listenForAllUsers());
         }
 
         // --- FILTERING & RENDERING ---
@@ -166,11 +169,12 @@
             }
             userListEl.innerHTML = usersToRender.map(user => {
                 const isTeacher = user.role === 'teacher';
+                const roleText = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown';
                 return `
                 <div class="item-card role-${user.role}">
                     <div>
                         <p><strong>${user.email}</strong></p>
-                        <small>Role: <strong>${user.role.charAt(0).toUpperCase() + user.role.slice(1)}</strong></small>
+                        <small>Role: <strong>${roleText}</strong></small>
                     </div>
                     <div>
                         <button class="btn btn-sm btn-edit" data-email="${user.email}">Edit Role</button>
@@ -190,12 +194,8 @@
         function handleListAction(e) {
             const email = e.target.dataset.email;
             if (!email) return;
-            if (e.target.classList.contains('btn-edit')) {
-                openEditRoleModal(email);
-            }
-            if (e.target.classList.contains('btn-delete')) {
-                handleSafeTeacherDelete(email);
-            }
+            if (e.target.classList.contains('btn-edit')) { openEditRoleModal(email); }
+            if (e.target.classList.contains('btn-delete')) { handleSafeTeacherDelete(email); }
         }
         
         // --- CRUD HANDLERS ---
@@ -204,38 +204,30 @@
             createTeacherStatusEl.textContent = 'Creating...';
             const name = e.target.name.value.trim();
             const email = e.target.email.value.trim();
-            
             try {
-                // Check if a teacher profile already exists for this email
                 const existingTeacher = await db.collection('teachers').where('email', '==', email).limit(1).get();
-                if (!existingTeacher.empty) {
-                    throw new Error("A teacher profile already exists for this email.");
-                }
+                if (!existingTeacher.empty) { throw new Error("A teacher profile already exists for this email."); }
                 const batch = db.batch();
                 batch.set(db.collection('teachers').doc(), { name, email });
                 batch.set(db.collection('users').doc(email), { role: 'teacher' });
-                batch.delete(db.collection('pending_users').doc(email)); // Also remove from pending
+                batch.delete(db.collection('pending_users').doc(email));
                 await batch.commit();
                 createTeacherStatusEl.textContent = 'Teacher created successfully!';
                 e.target.reset();
-            } catch (err) {
-                createTeacherStatusEl.textContent = `Error: ${err.message}`;
-            } finally {
-                setTimeout(() => createTeacherStatusEl.textContent = '', 3000);
-            }
+            } catch (err) { createTeacherStatusEl.textContent = `Error: ${err.message}`; } 
+            finally { setTimeout(() => createTeacherStatusEl.textContent = '', 3000); }
         }
         
         function openEditRoleModal(email) {
             const user = allUsersCache.find(u => u.email === email);
             const roleOptions = ASSIGNABLE_ROLES.map(r => `<option value="${r}" ${user.role === r ? 'selected' : ''}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`).join('');
-            
             editRoleModal.innerHTML = `
                 <div class="modal-content">
                     <span class="close-btn" onclick="closeModal('edit-role-modal')">&times;</span>
                     <h2>Edit Role for ${user.email}</h2>
                     <form id="edit-role-form" data-email="${email}" data-old-role="${user.role}">
                         <label for="role-select">Assign Role:</label>
-                        <select id="role-select" name="role">${roleOptions}</select>
+                        <select id="role-select" name="role"><option value="pending" ${user.role === 'pending' ? 'selected' : ''}>Pending</option>${roleOptions}</select>
                         <div id="teacher-name-field" style="display:${user.role === 'teacher' ? 'block' : 'none'};">
                            <label for="teacher-name-input">Teacher Name:</label>
                            <input type="text" id="teacher-name-input" placeholder="Required for teachers">
@@ -245,20 +237,10 @@
                 </div>`;
             openModal('edit-role-modal');
 
-            const roleSelect = document.getElementById('role-select');
-            const teacherNameField = document.getElementById('teacher-name-field');
-            const teacherNameInput = document.getElementById('teacher-name-input');
-            
-            // If the user is already a teacher, fetch their name for the input field.
+            const roleSelect = document.getElementById('role-select'), teacherNameField = document.getElementById('teacher-name-field'), teacherNameInput = document.getElementById('teacher-name-input');
             if (user.role === 'teacher') {
-                db.collection('teachers').where('email', '==', email).limit(1).get().then(snap => {
-                    if (!snap.empty) {
-                        teacherNameInput.value = snap.docs[0].data().name;
-                    }
-                });
+                db.collection('teachers').where('email', '==', email).limit(1).get().then(snap => { if (!snap.empty) { teacherNameInput.value = snap.docs[0].data().name; } });
             }
-
-            // Show/hide the teacher name field based on role selection.
             roleSelect.onchange = () => { teacherNameField.style.display = roleSelect.value === 'teacher' ? 'block' : 'none'; };
             document.getElementById('edit-role-form').addEventListener('submit', handleUpdateRole);
         }
@@ -270,42 +252,31 @@
             const newRole = e.target.role.value;
             const teacherName = document.getElementById('teacher-name-input').value.trim();
 
-            if (newRole === 'teacher' && !teacherName) {
-                alert('A name is required to assign the teacher role.');
-                return;
-            }
-
+            if (newRole === 'teacher' && !teacherName) { alert('A name is required to assign the teacher role.'); return; }
             try {
                 const batch = db.batch();
-                // 1. Set the new role in the users collection
+                // 1. Set/Update the role in the users collection
                 batch.set(db.collection('users').doc(email), { role: newRole });
-                
-                // 2. If the new role is 'teacher', create/update their profile
+                // 2. If the new role is teacher, create/update their profile
                 if (newRole === 'teacher') {
                     const teacherQuery = await db.collection('teachers').where('email', '==', email).limit(1).get();
-                    if (teacherQuery.empty) { // Teacher profile doesn't exist, create it.
-                        batch.set(db.collection('teachers').doc(), { name: teacherName, email: email });
-                    } else { // Profile exists, just update the name.
-                        batch.update(teacherQuery.docs[0].ref, { name: teacherName });
-                    }
+                    if (teacherQuery.empty) { batch.set(db.collection('teachers').doc(), { name: teacherName, email: email }); } 
+                    else { batch.update(teacherQuery.docs[0].ref, { name: teacherName }); }
                 }
-                
-                // 3. If the old role was 'teacher' and the new one is not, delete their teacher profile.
+                // 3. If the old role was teacher and the new one is not, delete their teacher profile & unassign subjects
                 if (oldRole === 'teacher' && newRole !== 'teacher') {
                     const teacherQuery = await db.collection('teachers').where('email', '==', email).limit(1).get();
                     if (!teacherQuery.empty) {
-                        batch.delete(teacherQuery.docs[0].ref);
-                        // Also unassign from subjects
-                        const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherQuery.docs[0].id).get();
+                        const teacherDoc = teacherQuery.docs[0];
+                        const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherDoc.id).get();
                         subjectsQuery.forEach(doc => batch.update(doc.ref, { teacherId: null, teacherName: null }));
+                        batch.delete(teacherDoc.ref);
                     }
                 }
-                
                 // 4. If they were pending, remove them from the pending list
-                if(oldRole === 'pending'){
+                if (oldRole === 'pending') {
                     batch.delete(db.collection('pending_users').doc(email));
                 }
-
                 await batch.commit();
                 closeModal('edit-role-modal');
                 alert('User role updated successfully!');
@@ -324,9 +295,9 @@
                     const teacherDoc = teacherQuery.docs[0];
                     const subjectsQuery = await db.collection('subjects').where('teacherId', '==', teacherDoc.id).get();
                     subjectsQuery.forEach(doc => batch.update(doc.ref, { teacherId: null, teacherName: null }));
-                    batch.delete(teacherDoc.ref); // Delete from teachers collection
+                    batch.delete(teacherDoc.ref);
                 }
-                batch.delete(db.collection('users').doc(email)); // Delete from users collection
+                batch.delete(db.collection('users').doc(email));
                 await batch.commit();
                 alert('Teacher deleted successfully.');
             } catch (err) {

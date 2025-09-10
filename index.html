@@ -9,7 +9,7 @@
             --primary-color: #3498db; --danger-color: #e74c3c; --dark-text: #2c3e50;
         }
         
-        /* Basic Setup */
+        /* Basic Setup for a full-screen layout */
         html, body {
             height: 100%;
             margin: 0;
@@ -24,7 +24,7 @@
             width: 100vw;
         }
 
-        /* Left side with the background image */
+        /* Left side with the background image and overlay */
         .login-image-panel {
             flex: 1;
             background-image: url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2070&auto=format&fit=crop');
@@ -69,7 +69,7 @@
             margin-bottom: 2em;
         }
 
-        /* Google Button Styling */
+        /* Modern Google Button Styling */
         .google-btn {
             background-color: #4285F4;
             color: white;
@@ -125,10 +125,10 @@
             text-align: left;
         }
         
-        /* Responsive design for smaller screens */
+        /* Hide the image panel on smaller screens for a mobile-friendly view */
         @media (max-width: 768px) {
             .login-image-panel {
-                display: none; /* Hide the image on mobile */
+                display: none;
             }
             .login-form-panel {
                 flex-basis: 100%;
@@ -159,6 +159,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
+        // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
             authDomain: "collage-management-696b3.firebaseapp.com",
@@ -172,67 +173,106 @@
         const db = firebase.firestore();
         const adminEmail = "harshavardhanjw@gmail.com";
 
+        // --- DOM Elements ---
         const loginBtn = document.getElementById('login-btn');
         const loginBtnText = document.getElementById('login-btn-text');
         const authErrorEl = document.getElementById('auth-error');
 
+        // --- Authentication Logic ---
+        
+        // This function is triggered when the "Sign in with Google" button is clicked.
         loginBtn.onclick = () => {
-            authErrorEl.style.display = 'none';
-            setButtonLoading(true); // Show spinner on click
+            authErrorEl.style.display = 'none'; // Hide any previous errors.
+            setButtonLoading(true); // Visually update the button to a loading state.
+            
+            // Initiate the Google Sign-In popup.
             auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(error => {
+                // If the user closes the popup or an error occurs, handle it here.
                 authErrorEl.textContent = `Error: ${error.message}`;
                 authErrorEl.style.display = 'block';
-                setButtonLoading(false); // Hide spinner on error
+                setButtonLoading(false); // Revert the button to its normal state.
             });
         };
 
+        // This is the core listener that detects any change in the user's login state.
         auth.onAuthStateChanged(user => {
             if (user) {
-                // If user object exists, it means they have successfully signed in via the popup
+                // A user object exists, meaning they have successfully signed in.
+                // Now, we must verify their role and redirect them.
                 setButtonLoading(true);
                 loginBtnText.textContent = 'Verifying account...';
                 checkUserRoleAndRedirect(user);
             } else {
-                // User is signed out or has never signed in
+                // No user object means the user is signed out or has never logged in.
                 setButtonLoading(false);
             }
         });
 
+        /**
+         * Checks the user's role in Firestore and redirects them to the appropriate page.
+         * This is the main authorization logic.
+         * @param {firebase.User} user The authenticated user object from Firebase Auth.
+         */
         async function checkUserRoleAndRedirect(user) {
-            if (user.email === adminEmail) { window.location.href = 'admin.html'; return; }
+            // Case 1: The user is the designated super administrator.
+            if (user.email === adminEmail) {
+                window.location.href = 'admin.html';
+                return;
+            }
             
+            // Case 2: Check the 'users' collection to see if they have an assigned role.
             const userDoc = await db.collection('users').doc(user.email).get();
 
             if (userDoc.exists) {
                 const role = userDoc.data().role;
-                if (role === 'student') { window.location.href = 'student.html'; } 
-                else if (role === 'teacher') { window.location.href = 'teacher.html'; } 
-                else { handlePendingUser('Your account role is not configured. Please contact an admin.'); }
+                if (role === 'student') {
+                    window.location.href = 'student.html';
+                } else if (role === 'teacher') {
+                    window.location.href = 'teacher.html';
+                } else {
+                    // They exist in the 'users' table but have an invalid or null role.
+                    handlePendingUser('Your account role is not configured correctly. Please contact an administrator.');
+                }
             } else {
-                await db.collection('pending_users').doc(user.email).set({ email: user.email, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                // Case 3: The user is not in the 'users' collection. They are a new, unassigned user.
+                // Add them to the 'pending_users' list for the admin to see and assign a role.
+                await db.collection('pending_users').doc(user.email).set({ 
+                    email: user.email, 
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+                }, { merge: true });
                 handlePendingUser('Your account is pending approval by the administrator.');
             }
         }
 
+        /**
+         * Shows an error message and signs the user out.
+         * This is crucial for pending users to prevent them from getting stuck in a login loop.
+         * @param {string} message The error message to display to the user.
+         */
         function handlePendingUser(message) {
             authErrorEl.textContent = message;
             authErrorEl.style.display = 'block';
-            auth.signOut(); // Sign out to prevent login loops
-            setButtonLoading(false);
+            auth.signOut(); // Immediately sign them out.
+            setButtonLoading(false); // Reset the button state.
         }
 
+        /**
+         * A utility function to manage the visual state of the login button (spinner and text).
+         * @param {boolean} isLoading True to show loading state, false to show normal state.
+         */
         function setButtonLoading(isLoading) {
+            const spinner = loginBtn.querySelector('.spinner');
             if (isLoading) {
                 loginBtn.disabled = true;
-                loginBtnText.textContent = 'Signing in...';
-                const spinner = document.createElement('div');
-                spinner.className = 'spinner';
-                loginBtn.prepend(spinner);
+                if (!spinner) { // Only add a spinner if one doesn't already exist
+                    const newSpinner = document.createElement('div');
+                    newSpinner.className = 'spinner';
+                    loginBtn.prepend(newSpinner);
+                }
             } else {
                 loginBtn.disabled = false;
                 loginBtnText.textContent = 'Sign in with Google';
-                const spinner = loginBtn.querySelector('.spinner');
-                if (spinner) spinner.remove();
+                if (spinner) spinner.remove(); // Remove the spinner if it exists
             }
         }
     </script>

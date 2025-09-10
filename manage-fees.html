@@ -57,7 +57,6 @@
         
         <div class="page-content">
             <div class="sidebar">
-                <!-- Section for setting default fees -->
                 <div id="default-fees-section">
                     <h3>Default Fee Structure</h3>
                     <p><small>Set the standard annual fee for each class.</small></p>
@@ -66,7 +65,6 @@
                     <p id="default-fees-status"></p>
                 </div>
                 <hr style="margin: 2em 0;">
-                <!-- Section for selecting a student -->
                 <div id="student-selector-section">
                     <h3>Student Financial Ledger</h3>
                     <select id="ledger-class-select" style="margin-bottom: 1em;"><option value="">-- Select Class --</option></select>
@@ -75,7 +73,6 @@
             </div>
 
             <div class="main-content">
-                <!-- Section for summary reports -->
                 <div id="reports-dashboard-section">
                     <h2>Financial Dashboard (<span id="current-year-display"></span>)</h2>
                     <div class="dashboard-grid" id="overall-summary-cards"></div>
@@ -89,7 +86,6 @@
                     </table>
                 </div>
 
-                <!-- Section for an individual student's ledger -->
                 <div id="student-ledger-section" style="display: none;"></div>
             </div>
         </div>
@@ -105,7 +101,14 @@
 
     <script>
         // --- CONFIG & INITIALIZATION ---
-        const firebaseConfig = { /* Your Config */ };
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
@@ -243,7 +246,6 @@
                 const amount = Number(input.value) || 0;
                 const docId = `CLASS_${className}_YEAR_${CURRENT_ACADEMIC_YEAR}`;
                 const structureRef = db.collection('feeStructures').doc(docId);
-                // Simple structure for default fees.
                 batch.set(structureRef, { className, academicYear: CURRENT_ACADEMIC_YEAR, total: amount, fees: { 'Annual Fee': amount } });
             });
             try { await batch.commit(); defaultFeesStatusEl.textContent = 'Default fees saved successfully!'; }

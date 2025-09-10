@@ -17,7 +17,7 @@
             width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1em; }
         .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; margin-left: 5px; }
         .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
         .btn-sm { padding: 5px 10px; font-size: 12px; }
@@ -32,9 +32,10 @@
         .item-card { background: #ecf0f1; padding: 1em; border-radius: 4px; margin-bottom: 0.8em; border-left: 5px solid var(--primary-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .item-card > div:first-child { flex-grow: 1; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; position: relative; }
         .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
+        .filter-controls { display: grid; grid-template-columns: 1fr auto; gap: 1em; margin-bottom: 1.5em; align-items: center; }
+        .filter-controls p { margin: 0; font-size: 0.9em; color: #7f8c8d; }
         .marks-config { background: var(--light-bg); padding: 1em; border-radius: 5px; margin-top: 1em; }
         .marks-config-controls { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: center; }
         .marks-item { background: white; padding: 8px; border-radius: 4px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
@@ -46,23 +47,22 @@
             <div class="header-info"><h1>Manage Exams</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
             <button id="logout-btn" class="btn btn-logout">Logout</button>
         </div>
-        <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
         
         <div class="page-content">
             <div class="form-container">
                 <h2>Create Exam</h2>
-                <p>Exam will be added to year: <strong class="current-year-label"></strong></p>
+                <p>Exam will be added to year: <strong id="form-year-display"></strong></p>
                 <form id="create-exam-form">
-                    <label>Exam Name:</label><input type="text" id="exam-name" required placeholder="e.g., Unit Test 1">
+                    <label>Exam Name:</label><input type="text" id="create-exam-name" required placeholder="e.g., Mid-Term Exam">
                     <div class="marks-config">
                         <h4>Configure Marks</h4>
                         <div class="marks-config-controls">
-                            <select id="exam-class-select"><option value="">Class</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
-                            <select id="exam-subject-select" disabled><option value="">Subject</option></select>
-                            <input type="number" id="exam-max-marks" placeholder="Max Marks" min="1">
-                            <button type="button" id="add-exam-subject-btn" class="btn btn-edit">Add</button>
+                            <select id="create-exam-class-select"><option value="">Class</option></select>
+                            <select id="create-exam-subject-select" disabled><option value="">Subject</option></select>
+                            <input type="number" id="create-exam-max-marks" placeholder="Max Marks" min="1">
+                            <button type="button" id="create-add-subject-btn" class="btn btn-edit">Add</button>
                         </div>
-                        <div id="exam-marks-list" style="margin-top:1em;"></div>
+                        <div id="create-exam-marks-list" style="margin-top:1em;"></div>
                     </div>
                     <button type="submit">Create Exam</button>
                     <p id="create-exam-status"></p>
@@ -70,6 +70,10 @@
             </div>
             <div class="list-container">
                 <h2>Existing Exams</h2>
+                <div class="filter-controls">
+                    <select id="year-filter-select"></select>
+                    <p id="exam-count-display"></p>
+                </div>
                 <div id="exam-list"></div>
             </div>
         </div>
@@ -98,27 +102,22 @@
 
         // Global State
         let CURRENT_ACADEMIC_YEAR = null;
-        let examsCache = [], subjectsCache = [];
-        let currentExamMarks = []; // Temp storage for creating a new exam
+        let allExamsCache = [], examsCache = [], subjectsCache = [];
+        let createExamMarks = [];
+        let editExamMarks = {};
 
         // DOM Elements
         const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
         const examListEl = document.getElementById('exam-list');
         const createExamForm = document.getElementById('create-exam-form'), createExamStatusEl = document.getElementById('create-exam-status');
-        const examNameInput = document.getElementById('exam-name'), examClassSelect = document.getElementById('exam-class-select'), examSubjectSelect = document.getElementById('exam-subject-select'), examMaxMarksInput = document.getElementById('exam-max-marks'), addExamSubjectBtn = document.getElementById('add-exam-subject-btn'), examMarksListEl = document.getElementById('exam-marks-list');
         const editExamModal = document.getElementById('edit-exam-modal');
+        const yearFilterSelect = document.getElementById('year-filter-select'), examCountDisplay = document.getElementById('exam-count-display');
         
         // --- AUTH & INITIALIZATION ---
         auth.onAuthStateChanged(user => {
-            if (user && user.email === adminEmail) {
-                mainContainer.style.display = 'block';
-                userEmailEl.textContent = user.email;
-                initializePage();
-            } else {
-                window.location.href = 'index.html';
-            }
+            if (user && user.email === adminEmail) { mainContainer.style.display = 'block'; userEmailEl.textContent = user.email; initializePage(); } 
+            else { window.location.href = 'index.html'; }
         });
-
         logoutBtn.onclick = () => auth.signOut();
 
         async function initializePage() {
@@ -127,169 +126,203 @@
                 listenForData(); 
                 setupEventListeners(); 
             } catch (error) {
-                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ensure you have created the 'settings/global' document in Firestore with a 'currentAcademicYear' field.</p>`;
+                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p>`;
             }
         }
         
         async function fetchGlobalSettings() {
             const settingsRef = db.collection('settings').doc('global');
             const doc = await settingsRef.get();
-            if (!doc.exists || !doc.data().currentAcademicYear) {
-                throw new Error("Global settings not found or 'currentAcademicYear' is not set.");
-            }
+            if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found or 'currentAcademicYear' is not set."); }
             CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
-            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
-            document.querySelectorAll('.current-year-label').forEach(el => el.textContent = CURRENT_ACADEMIC_YEAR);
+            document.getElementById('form-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
         
         // UI Control
         function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
 
-        // --- Data Listeners ---
+        // --- DATA LISTENERS ---
         function listenForData() {
-            if (!CURRENT_ACADEMIC_YEAR) return;
-
-            // Listens for subjects to populate dropdowns
-            db.collection('subjects').orderBy('className').onSnapshot(snap => { 
-                const allDocs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                subjectsCache = allDocs.filter(s => !s.academicYear || s.academicYear === CURRENT_ACADEMIC_YEAR);
+            db.collection('subjects').onSnapshot(snap => { 
+                subjectsCache = snap.docs.map(doc => doc.data());
+                populateClassDropdown('create-exam-class-select');
             });
-
-            // Listens for exams for the current year (or old data)
             db.collection('exams').orderBy('createdAt', 'desc').onSnapshot(snap => { 
-                const allDocs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                examsCache = allDocs.filter(e => !e.academicYear || e.academicYear === CURRENT_ACADEMIC_YEAR);
-                renderExamList(); 
+                allExamsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                populateYearFilter();
+                filterAndRenderExams(); 
             });
         }
 
-        // --- Render Functions ---
-        function renderExamList() {
-            examListEl.innerHTML = examsCache.map(e => `
+        // --- FILTERING & RENDERING ---
+        function populateYearFilter() {
+            const uniqueYears = [...new Set(allExamsCache.map(e => e.academicYear).filter(Boolean))];
+            if (!uniqueYears.includes(CURRENT_ACADEMIC_YEAR)) { uniqueYears.push(CURRENT_ACADEMIC_YEAR); }
+            uniqueYears.sort().reverse();
+            yearFilterSelect.innerHTML = uniqueYears.map(year => `<option value="${year}" ${year === CURRENT_ACADEMIC_YEAR ? 'selected' : ''}>${year}</option>`).join('');
+        }
+        
+        function filterAndRenderExams() {
+            const selectedYear = yearFilterSelect.value;
+            examsCache = allExamsCache.filter(e => e.academicYear === selectedYear || (!e.academicYear && selectedYear === getPreviousYear()));
+            renderExamList(examsCache);
+        }
+
+        function renderExamList(examsToRender) {
+            examCountDisplay.textContent = `Showing ${examsToRender.length} exams`;
+            examListEl.innerHTML = examsToRender.map(e => `
                 <div class="item-card">
                     <div><p><strong>${e.examName}</strong></p></div>
                     <div>
                         <button class="btn btn-sm btn-edit" data-id="${e.id}">Edit</button>
                         <button class="btn btn-sm btn-delete" data-id="${e.id}">Delete</button>
                     </div>
-                </div>`).join('') || `<p>No exams found for the ${CURRENT_ACADEMIC_YEAR} year.</p>`;
+                </div>`).join('') || `<p>No exams found for the selected year.</p>`;
         }
         
-        // --- Event Listeners ---
+        // --- EVENT LISTENERS ---
         function setupEventListeners() {
             examListEl.addEventListener('click', handleListAction);
+            yearFilterSelect.addEventListener('change', filterAndRenderExams);
+            
+            // Create form listeners
             createExamForm.addEventListener('submit', handleCreateExam);
-            addExamSubjectBtn.addEventListener('click', handleAddExamSubject);
-            examClassSelect.addEventListener('change', handleExamClassChange);
-            examMarksListEl.addEventListener('click', e => {
-                if (e.target.dataset.index) removeExamMark(e.target.dataset.index);
-            });
+            document.getElementById('create-add-subject-btn').addEventListener('click', () => handleAddSubject('create'));
+            document.getElementById('create-exam-class-select').addEventListener('change', () => handleClassChange('create'));
+            document.getElementById('create-exam-marks-list').addEventListener('click', e => { if (e.target.dataset.key) removeSubject('create', e.target.dataset.key); });
+        }
+        function handleListAction(e) { const id = e.target.dataset.id; if (!id) return; if (e.target.classList.contains('btn-edit')) { openEditExamModal(id); } if (e.target.classList.contains('btn-delete')) { handleDelete(id); } }
+        
+        // --- SHARED FORM LOGIC ---
+        function populateClassDropdown(elementId) {
+            const uniqueClasses = [...new Set(subjectsCache.filter(s => s.academicYear === CURRENT_ACADEMIC_YEAR).map(s => s.className))].sort((a,b)=>a-b);
+            const selectEl = document.getElementById(elementId);
+            selectEl.innerHTML = '<option value="">Class</option>' + uniqueClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+        function handleClassChange(formType) {
+            const classSelect = document.getElementById(`${formType}-exam-class-select`);
+            const subjectSelect = document.getElementById(`${formType}-exam-subject-select`);
+            const selectedClass = classSelect.value;
+            subjectSelect.innerHTML = '<option value="">Subject</option>';
+            subjectSelect.disabled = true;
+            if (!selectedClass) return;
+            const subjectsForClass = subjectsCache.filter(s => s.className === selectedClass && s.academicYear === CURRENT_ACADEMIC_YEAR);
+            if (subjectsForClass.length > 0) {
+                subjectsForClass.forEach(s => subjectSelect.innerHTML += `<option value="${s.subjectName}">${s.subjectName}</option>`);
+                subjectSelect.disabled = false;
+            }
+        }
+        function handleAddSubject(formType) {
+            const classVal = document.getElementById(`${formType}-exam-class-select`).value;
+            const subjectVal = document.getElementById(`${formType}-exam-subject-select`).value;
+            const marksVal = document.getElementById(`${formType}-exam-max-marks`).value;
+            if (!classVal || !subjectVal || !marksVal) { alert('Please select a class, subject, and enter max marks.'); return; }
+            
+            const key = `CLASS_${classVal}_${subjectVal.replace(/\s+/g, '_').toUpperCase()}`;
+            const marksData = (formType === 'create') ? createExamMarks : editExamMarks;
+            
+            if (marksData[key]) { alert('This subject has already been added to this exam.'); return; }
+
+            marksData[key] = { class: classVal, subject: subjectVal, marks: parseInt(marksVal) };
+            renderMarksList(formType, marksData);
+            document.getElementById(`${formType}-exam-max-marks`).value = '';
+        }
+        function removeSubject(formType, key) {
+            const marksData = (formType === 'create') ? createExamMarks : editExamMarks;
+            delete marksData[key];
+            renderMarksList(formType, marksData);
+        }
+        function renderMarksList(formType, marksData) {
+            const listEl = document.getElementById(`${formType}-exam-marks-list`);
+            listEl.innerHTML = Object.entries(marksData).map(([key, item]) => `
+                <div class="marks-item">
+                    <span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span>
+                    <button type="button" class="btn btn-sm btn-delete" data-key="${key}">Remove</button>
+                </div>`).join('');
         }
 
-        function handleListAction(e) {
-            const id = e.target.dataset.id;
-            if (!id) return;
-            if (e.target.classList.contains('btn-edit')) {
-                openEditExamModal(id);
-            }
-            if (e.target.classList.contains('btn-delete')) {
-                handleDelete(id);
-            }
-        }
-        
-        // --- CRUD Handlers ---
-        
-        // CREATE
-        function handleExamClassChange() {
-            const selectedClass = examClassSelect.value;
-            examSubjectSelect.innerHTML = '<option value="">Subject</option>';
-            examSubjectSelect.disabled = true;
-            if (!selectedClass) return;
-            const subjectsForClass = subjectsCache.filter(s => s.className === selectedClass);
-            if (subjectsForClass.length > 0) {
-                subjectsForClass.forEach(s => examSubjectSelect.innerHTML += `<option value="${s.subjectName}">${s.subjectName}</option>`);
-                examSubjectSelect.disabled = false;
-            }
-        }
-        function handleAddExamSubject() {
-            const className = examClassSelect.value, subjectName = examSubjectSelect.value, maxMarks = examMaxMarksInput.value;
-            if (!className || !subjectName || !maxMarks) { alert('Please select a class, subject, and enter max marks.'); return; }
-            if (currentExamMarks.some(item => item.class === className && item.subject === subjectName)) { alert('This subject has already been added.'); return; }
-            currentExamMarks.push({ class: className, subject: subjectName, marks: parseInt(maxMarks) });
-            renderCurrentExamMarks();
-            examMaxMarksInput.value = '';
-        }
-        function renderCurrentExamMarks() {
-            examMarksListEl.innerHTML = currentExamMarks.map((item, index) => `<div class="marks-item"><span>Class ${item.class} - ${item.subject} (${item.marks} Marks)</span><button type="button" class="btn btn-sm btn-delete" data-index="${index}">Remove</button></div>`).join('');
-        }
-        function removeExamMark(index) {
-            currentExamMarks.splice(index, 1);
-            renderCurrentExamMarks();
-        }
+        // --- CREATE HANDLER ---
         async function handleCreateExam(e) {
             e.preventDefault();
-            if (!examNameInput.value.trim() || currentExamMarks.length === 0) {
-                alert('Please provide an exam name and configure at least one subject with marks.');
-                return;
-            }
+            const examName = document.getElementById('create-exam-name').value.trim();
+            if (!examName || Object.keys(createExamMarks).length === 0) { alert('Please provide exam name and configure marks.'); return; }
             createExamStatusEl.textContent = 'Creating...';
             const marksStructure = {};
-            currentExamMarks.forEach(item => {
-                const key = `CLASS_${item.class}_${item.subject.replace(/\s+/g, '_').toUpperCase()}`;
-                marksStructure[key] = item.marks;
-            });
+            for (const key in createExamMarks) { marksStructure[key] = createExamMarks[key].marks; }
             try {
-                await db.collection('exams').add({
-                    examName: examNameInput.value.trim(),
-                    marksStructure,
-                    academicYear: CURRENT_ACADEMIC_YEAR,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                await db.collection('exams').add({ examName, marksStructure, academicYear: CURRENT_ACADEMIC_YEAR, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
                 createExamStatusEl.textContent = 'Exam created successfully!';
                 e.target.reset();
-                currentExamMarks = [];
-                renderCurrentExamMarks();
-                examSubjectSelect.innerHTML = '<option value="">Subject</option>';
-                examSubjectSelect.disabled = true;
-            } catch (err) {
-                createExamStatusEl.textContent = `Error: ${err.message}`;
-            } finally {
-                setTimeout(() => createExamStatusEl.textContent = '', 3000);
-            }
+                createExamMarks = {};
+                renderMarksList('create', createExamMarks);
+            } catch (err) { createExamStatusEl.textContent = `Error: ${err.message}`; } 
+            finally { setTimeout(() => createExamStatusEl.textContent = '', 3000); }
         }
         
-        // UPDATE
+        // --- UPDATE HANDLER ---
         function openEditExamModal(id) {
-            const exam = examsCache.find(e => e.id === id);
+            const exam = allExamsCache.find(e => e.id === id);
             editExamModal.innerHTML = `
                 <div class="modal-content">
                     <span class="close-btn" onclick="closeModal('edit-exam-modal')">&times;</span>
-                    <h2>Edit Exam Name</h2>
+                    <h2>Edit Exam</h2>
                     <form id="edit-exam-form" data-id="${id}">
-                        <label>Exam Name:</label><input type="text" name="name" value="${exam.examName}" required>
+                        <label>Exam Name:</label><input type="text" id="edit-exam-name" value="${exam.examName}" required>
+                        <div class="marks-config">
+                            <h4>Configure Marks</h4>
+                            <div class="marks-config-controls">
+                                <select id="edit-exam-class-select"><option value="">Class</option></select>
+                                <select id="edit-exam-subject-select" disabled><option value="">Subject</option></select>
+                                <input type="number" id="edit-exam-max-marks" placeholder="Max Marks" min="1">
+                                <button type="button" id="edit-add-subject-btn" class="btn btn-edit">Add</button>
+                            </div>
+                            <div id="edit-exam-marks-list" style="margin-top:1em;"></div>
+                        </div>
                         <button type="submit">Save Changes</button>
                     </form>
                 </div>`;
             openModal('edit-exam-modal');
+            
+            // Initialize edit form state
+            editExamMarks = {};
+            for(const key in exam.marksStructure) {
+                const [, className, subjectName] = key.split('_');
+                editExamMarks[key] = { class: className, subject: subjectName.replace(/_/g, ' '), marks: exam.marksStructure[key] };
+            }
+            populateClassDropdown('edit-exam-class-select');
+            renderMarksList('edit', editExamMarks);
+            
             document.getElementById('edit-exam-form').addEventListener('submit', handleUpdateExam);
+            document.getElementById('edit-add-subject-btn').addEventListener('click', () => handleAddSubject('edit'));
+            document.getElementById('edit-exam-class-select').addEventListener('change', () => handleClassChange('edit'));
+            document.getElementById('edit-exam-marks-list').addEventListener('click', e => { if (e.target.dataset.key) removeSubject('edit', e.target.dataset.key); });
         }
         async function handleUpdateExam(e) {
             e.preventDefault();
             const id = e.target.dataset.id;
+            const newName = document.getElementById('edit-exam-name').value.trim();
+            const newMarksStructure = {};
+            for (const key in editExamMarks) { newMarksStructure[key] = editExamMarks[key].marks; }
+            if (!newName || Object.keys(newMarksStructure).length === 0) { alert('Exam name and at least one subject are required.'); return; }
             try {
-                await db.collection('exams').doc(id).update({ examName: e.target.name.value.trim() });
+                await db.collection('exams').doc(id).update({ examName: newName, marksStructure: newMarksStructure });
                 closeModal('edit-exam-modal');
-            } catch (err) {
-                alert(`Error updating exam: ${err.message}`);
-            }
+            } catch (err) { alert(`Error updating exam: ${err.message}`); }
         }
 
-        // DELETE
+        // --- DELETE HANDLER ---
         function handleDelete(id) {
-            if (confirm(`Are you sure you want to delete this exam?`)) {
+            if (confirm(`Are you sure you want to delete this exam? This action cannot be undone.`)) {
                 db.collection('exams').doc(id).delete().catch(err => alert(`Error: ${err.message}`));
             }
+        }
+        
+        // --- UTILITY ---
+        function getPreviousYear() {
+            if (!CURRENT_ACADEMIC_YEAR) return '';
+            const years = CURRENT_ACADEMIC_YEAR.split('-').map(Number);
+            return `${years[0]-1}-${years[1]-1}`;
         }
     </script>
 </body>

@@ -131,7 +131,6 @@
     </style>
 </head>
 <body>
-
     <div class="login-wrapper">
         <div class="login-image-panel"></div>
         <div class="login-form-panel">
@@ -190,47 +189,39 @@
         });
 
         async function checkUserRoleAndRedirect(user) {
-            // Priority 1: Check for the super administrator.
             if (user.email === adminEmail) {
                 window.location.href = 'admin.html';
                 return;
             }
             
-            // Priority 2: Check if the user has a pre-assigned role in the 'users' collection.
             const userDoc = await db.collection('users').doc(user.email).get();
             if (userDoc.exists) {
                 const role = userDoc.data().role;
                 if (role === 'student') { window.location.href = 'student.html'; return; } 
                 if (role === 'teacher') { window.location.href = 'teacher.html'; return; }
-                // ** CRITICAL FIX **: Handle the accountant role.
                 if (role === 'accountant') { window.location.href = 'manage-fees.html'; return; }
                 
-                // If role exists but is invalid/null, treat as pending.
                 handlePendingUser('Your account role is not configured correctly. Please contact an administrator.');
                 return;
             }
 
-            // Priority 3: If no role is found, check if a profile was pre-created for this email.
             const studentProfileQuery = db.collection('students').where('email', '==', user.email).limit(1);
             const teacherProfileQuery = db.collection('teachers').where('email', '==', user.email).limit(1);
             
             const [studentSnap, teacherSnap] = await Promise.all([studentProfileQuery.get(), teacherProfileQuery.get()]);
 
             if (!studentSnap.empty) {
-                // A student profile exists! Atomically create their user role and redirect.
                 await db.collection('users').doc(user.email).set({ role: 'student' });
                 window.location.href = 'student.html';
                 return;
             }
 
             if (!teacherSnap.empty) {
-                // A teacher profile exists! Atomically create their user role and redirect.
                 await db.collection('users').doc(user.email).set({ role: 'teacher' });
                 window.location.href = 'teacher.html';
                 return;
             }
 
-            // Priority 4: If all checks fail, the user is genuinely new and unassigned.
             await db.collection('pending_users').doc(user.email).set({ 
                 email: user.email, 
                 createdAt: firebase.firestore.FieldValue.serverTimestamp() 

@@ -112,12 +112,17 @@
             text-align: left;
         }
         @media (max-width: 768px) {
-            .login-image-panel { display: none; }
-            .login-form-panel { flex-basis: 100%; }
+            .login-image-panel {
+                display: none;
+            }
+            .login-form-panel {
+                flex-basis: 100%;
+            }
         }
     </style>
 </head>
 <body>
+
     <div class="login-wrapper">
         <div class="login-image-panel"></div>
         <div class="login-form-panel">
@@ -185,34 +190,30 @@
 
             if (userDoc.exists) {
                 const role = userDoc.data().role;
-                if (role === 'student') {
-                    window.location.href = 'student.html';
-                } else if (role === 'teacher') {
-                    window.location.href = 'teacher.html';
-                } else if (role === 'accountant') {
-                    window.location.href = 'manage-fees.html';
-                } else if (role === 'principal') {
-                    window.location.href = 'reports.html';
-                } else {
-                    handlePendingUser('Your account role is not configured correctly. Please contact an administrator.', user);
+                switch (role) {
+                    case 'student':
+                        window.location.href = 'student.html';
+                        break;
+                    case 'teacher':
+                        window.location.href = 'teacher.html';
+                        break;
+                    case 'accountant':
+                        window.location.href = 'manage-fees.html';
+                        break;
+                    case 'principal':
+                        window.location.href = 'reports.html'; // Example redirect for principal
+                        break;
+                    default:
+                        // A user exists but has no valid role, treat as pending.
+                        await db.collection('pending_users').doc(user.email).set({ email: user.email }, { merge: true });
+                        window.location.href = 'pending.html';
+                        break;
                 }
             } else {
-                await db.collection('pending_users').doc(user.email).set({ 
-                    email: user.email, 
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp() 
-                }, { merge: true });
-                
+                // User is new and has no role.
+                await db.collection('pending_users').doc(user.email).set({ email: user.email, createdAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
                 window.location.href = 'pending.html';
             }
-        }
-
-        function handlePendingUser(message, user) {
-            authErrorEl.textContent = message;
-            authErrorEl.style.display = 'block';
-            if (user) {
-                auth.signOut();
-            }
-            setButtonLoading(false);
         }
 
         function setButtonLoading(isLoading) {

@@ -8,20 +8,17 @@
         :root {
             --primary-color: #3498db; --danger-color: #e74c3c; --dark-text: #2c3e50;
         }
-        
         html, body {
             height: 100%;
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
         }
-
         .login-wrapper {
             display: flex;
             height: 100vh;
             width: 100vw;
         }
-
         .login-image-panel {
             flex: 1;
             background-image: url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2070&auto=format&fit=crop');
@@ -35,7 +32,6 @@
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.3);
         }
-
         .login-form-panel {
             flex: 1;
             display: flex;
@@ -44,17 +40,20 @@
             background-color: #ffffff;
             padding: 2em;
         }
-        .login-container {
+        .view {
             width: 100%;
             max-width: 400px;
             text-align: center;
+            display: none;
             animation: fadeIn 1s ease-in-out;
+        }
+        .view.active {
+            display: block;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
         h1 {
             color: var(--dark-text);
             font-size: 2.5em;
@@ -64,7 +63,6 @@
             color: #7f8c8d;
             margin-bottom: 2em;
         }
-
         .google-btn {
             background-color: #4285F4;
             color: white;
@@ -95,7 +93,6 @@
             border-radius: 50%;
             padding: 2px;
         }
-
         .spinner {
             display: inline-block;
             width: 18px;
@@ -108,7 +105,6 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-
         .error-message {
             color: var(--danger-color);
             background-color: rgba(231, 76, 60, 0.1);
@@ -119,7 +115,10 @@
             font-weight: 500;
             text-align: left;
         }
-        
+        #pending-user-email {
+            font-weight: bold;
+            color: var(--dark-text);
+        }
         @media (max-width: 768px) {
             .login-image-panel { display: none; }
             .login-form-panel { flex-basis: 100%; }
@@ -131,7 +130,8 @@
     <div class="login-wrapper">
         <div class="login-image-panel"></div>
         <div class="login-form-panel">
-            <div class="login-container">
+            
+            <div id="login-view" class="view active">
                 <h1>Welcome Back</h1>
                 <p>Sign in to access the Academic Portal.</p>
                 <button id="login-btn" class="google-btn">
@@ -140,6 +140,13 @@
                 </button>
                 <p id="auth-error" class="error-message" style="display: none;"></p>
             </div>
+
+            <div id="pending-view" class="view">
+                <h1>Account Pending</h1>
+                <p>Your account for <strong id="pending-user-email"></strong> has been created but is awaiting approval from an administrator. Please contact the school office.</p>
+                <button id="logout-btn" class="google-btn" style="background-color: var(--danger-color);">Logout</button>
+            </div>
+
         </div>
     </div>
     
@@ -164,6 +171,15 @@
         const loginBtn = document.getElementById('login-btn');
         const loginBtnText = document.getElementById('login-btn-text');
         const authErrorEl = document.getElementById('auth-error');
+        const logoutBtn = document.getElementById('logout-btn');
+        const loginView = document.getElementById('login-view');
+        const pendingView = document.getElementById('pending-view');
+        const pendingUserEmailEl = document.getElementById('pending-user-email');
+
+        const showView = (viewId) => {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+        };
 
         loginBtn.onclick = () => {
             authErrorEl.style.display = 'none';
@@ -175,74 +191,46 @@
             });
         };
 
+        logoutBtn.onclick = () => auth.signOut();
+
         auth.onAuthStateChanged(user => {
             if (user) {
-                setButtonLoading(true);
-                loginBtnText.textContent = 'Verifying account...';
                 checkUserRoleAndRedirect(user);
             } else {
+                showView('login-view');
                 setButtonLoading(false);
             }
         });
 
         async function checkUserRoleAndRedirect(user) {
-            // Priority 1: Check for Admin
             if (user.email === adminEmail) {
                 window.location.href = 'admin.html';
                 return;
             }
             
-            // Priority 2: Check for an existing, defined role in the `users` collection
             const userDoc = await db.collection('users').doc(user.email).get();
+
             if (userDoc.exists) {
                 const role = userDoc.data().role;
-                if (role === 'student') { window.location.href = 'student.html'; return; } 
-                if (role === 'teacher') { window.location.href = 'teacher.html'; return; }
-                if (role === 'accountant') { window.location.href = 'manage-fees.html'; return; }
-                handlePendingUser('Your account role is not configured. Please contact an admin.');
-                return;
+                if (role === 'student') { window.location.href = 'student.html'; } 
+                else if (role === 'teacher') { window.location.href = 'teacher.html'; } 
+                else if (role === 'accountant') { window.location.href = 'manage-fees.html'; }
+                else if (role === 'principal') { window.location.href = 'reports.html'; }
+                else {
+                    showPendingView(user);
+                }
+            } else {
+                await db.collection('pending_users').doc(user.email).set({ 
+                    email: user.email, 
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+                }, { merge: true });
+                showPendingView(user);
             }
-
-            // Priority 3: ** SELF-HEALING STEP **
-            // If no role exists, check if a profile was pre-created for this email.
-            const studentProfileQuery = db.collection('students').where('email', '==', user.email).limit(1);
-            const teacherProfileQuery = db.collection('teachers').where('email', '==', user.email).limit(1);
-            
-            const [studentSnap, teacherSnap] = await Promise.all([studentProfileQuery.get(), teacherProfileQuery.get()]);
-
-            const batch = db.batch();
-            
-            if (!studentSnap.empty) {
-                // Found a pre-created student profile. Atomically create their role.
-                batch.set(db.collection('users').doc(user.email), { role: 'student' });
-                batch.delete(db.collection('pending_users').doc(user.email)); // Clean up pending list if they were there
-                await batch.commit();
-                window.location.href = 'student.html'; // Redirect immediately
-                return;
-            }
-
-            if (!teacherSnap.empty) {
-                // Found a pre-created teacher profile. Atomically create their role.
-                batch.set(db.collection('users').doc(user.email), { role: 'teacher' });
-                batch.delete(db.collection('pending_users').doc(user.email));
-                await batch.commit();
-                window.location.href = 'teacher.html'; // Redirect immediately
-                return;
-            }
-
-            // Priority 4: If all checks fail, the user is genuinely new and unassigned.
-            await db.collection('pending_users').doc(user.email).set({ 
-                email: user.email, 
-                createdAt: firebase.firestore.FieldValue.serverTimestamp() 
-            }, { merge: true });
-            handlePendingUser('Your account is pending approval by the administrator.');
         }
 
-        function handlePendingUser(message) {
-            authErrorEl.textContent = message;
-            authErrorEl.style.display = 'block';
-            auth.signOut();
-            setButtonLoading(false);
+        function showPendingView(user) {
+            pendingUserEmailEl.textContent = user.email;
+            showView('pending-view');
         }
 
         function setButtonLoading(isLoading) {

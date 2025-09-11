@@ -152,6 +152,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
+        // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
             authDomain: "collage-management-696b3.firebaseapp.com",
@@ -165,10 +166,12 @@
         const db = firebase.firestore();
         const adminEmail = "harshavardhanjw@gmail.com";
 
+        // --- DOM Elements ---
         const loginBtn = document.getElementById('login-btn');
         const loginBtnText = document.getElementById('login-btn-text');
         const authErrorEl = document.getElementById('auth-error');
 
+        // --- Authentication Logic ---
         loginBtn.onclick = () => {
             authErrorEl.style.display = 'none';
             setButtonLoading(true);
@@ -190,11 +193,13 @@
         });
 
         async function checkUserRoleAndRedirect(user) {
+            // Priority 1: Check for the super administrator.
             if (user.email === adminEmail) {
                 window.location.href = 'admin.html';
                 return;
             }
             
+            // Priority 2: Check if the user has a pre-assigned role in the 'users' collection.
             const userDoc = await db.collection('users').doc(user.email).get();
             if (userDoc.exists) {
                 const role = userDoc.data().role;
@@ -205,6 +210,7 @@
                 return;
             }
 
+            // Priority 3: If no role is found, check if a profile was pre-created for this email.
             const studentProfileQuery = db.collection('students').where('email', '==', user.email).limit(1);
             const teacherProfileQuery = db.collection('teachers').where('email', '==', user.email).limit(1);
             
@@ -222,6 +228,7 @@
                 return;
             }
 
+            // Priority 4: If all checks fail, the user is genuinely new and unassigned.
             await db.collection('pending_users').doc(user.email).set({ 
                 email: user.email, 
                 createdAt: firebase.firestore.FieldValue.serverTimestamp() 

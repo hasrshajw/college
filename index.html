@@ -8,17 +8,20 @@
         :root {
             --primary-color: #3498db; --danger-color: #e74c3c; --dark-text: #2c3e50;
         }
+        
         html, body {
             height: 100%;
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
         }
+
         .login-wrapper {
             display: flex;
             height: 100vh;
             width: 100vw;
         }
+
         .login-image-panel {
             flex: 1;
             background-image: url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2070&auto=format&fit=crop');
@@ -32,6 +35,7 @@
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.3);
         }
+
         .login-form-panel {
             flex: 1;
             display: flex;
@@ -50,6 +54,7 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
         h1 {
             color: var(--dark-text);
             font-size: 2.5em;
@@ -59,6 +64,7 @@
             color: #7f8c8d;
             margin-bottom: 2em;
         }
+
         .google-btn {
             background-color: #4285F4;
             color: white;
@@ -89,6 +95,7 @@
             border-radius: 50%;
             padding: 2px;
         }
+
         .spinner {
             display: inline-block;
             width: 18px;
@@ -101,6 +108,7 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
         .error-message {
             color: var(--danger-color);
             background-color: rgba(231, 76, 60, 0.1);
@@ -111,6 +119,7 @@
             font-weight: 500;
             text-align: left;
         }
+        
         @media (max-width: 768px) {
             .login-image-panel { display: none; }
             .login-form-panel { flex-basis: 100%; }
@@ -177,47 +186,51 @@
         });
 
         async function checkUserRoleAndRedirect(user) {
+            // Priority 1: Check for Admin
             if (user.email === adminEmail) {
                 window.location.href = 'admin.html';
                 return;
             }
             
+            // Priority 2: Check for an existing, defined role in the `users` collection
             const userDoc = await db.collection('users').doc(user.email).get();
-
             if (userDoc.exists) {
                 const role = userDoc.data().role;
                 if (role === 'student') { window.location.href = 'student.html'; return; } 
                 if (role === 'teacher') { window.location.href = 'teacher.html'; return; }
                 if (role === 'accountant') { window.location.href = 'manage-fees.html'; return; }
-                
-                handlePendingUser('Your account role is not configured correctly. Please contact an administrator.');
+                handlePendingUser('Your account role is not configured. Please contact an admin.');
                 return;
             }
 
+            // Priority 3: ** SELF-HEALING STEP **
+            // If no role exists, check if a profile was pre-created for this email.
             const studentProfileQuery = db.collection('students').where('email', '==', user.email).limit(1);
             const teacherProfileQuery = db.collection('teachers').where('email', '==', user.email).limit(1);
             
             const [studentSnap, teacherSnap] = await Promise.all([studentProfileQuery.get(), teacherProfileQuery.get()]);
 
             const batch = db.batch();
-            let roleAssigned = false;
-
-            if (!studentSnap.empty) {
-                batch.set(db.collection('users').doc(user.email), { role: 'student' });
-                roleAssigned = true;
-            } else if (!teacherSnap.empty) {
-                batch.set(db.collection('users').doc(user.email), { role: 'teacher' });
-                roleAssigned = true;
-            }
             
-            if (roleAssigned) {
-                batch.delete(db.collection('pending_users').doc(user.email));
+            if (!studentSnap.empty) {
+                // Found a pre-created student profile. Atomically create their role.
+                batch.set(db.collection('users').doc(user.email), { role: 'student' });
+                batch.delete(db.collection('pending_users').doc(user.email)); // Clean up pending list if they were there
                 await batch.commit();
-                // Re-run the check now that the role is created.
-                await checkUserRoleAndRedirect(user);
+                window.location.href = 'student.html'; // Redirect immediately
                 return;
             }
 
+            if (!teacherSnap.empty) {
+                // Found a pre-created teacher profile. Atomically create their role.
+                batch.set(db.collection('users').doc(user.email), { role: 'teacher' });
+                batch.delete(db.collection('pending_users').doc(user.email));
+                await batch.commit();
+                window.location.href = 'teacher.html'; // Redirect immediately
+                return;
+            }
+
+            // Priority 4: If all checks fail, the user is genuinely new and unassigned.
             await db.collection('pending_users').doc(user.email).set({ 
                 email: user.email, 
                 createdAt: firebase.firestore.FieldValue.serverTimestamp() 

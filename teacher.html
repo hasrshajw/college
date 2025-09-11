@@ -14,81 +14,79 @@
             justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
         }
         .container {
-            width: 95%; max-width: 900px; background: white; padding: 2em; border-radius: 8px;
+            width: 95%; max-width: 1200px; background: white; padding: 2em; border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 2em; }
-        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; transition: opacity 0.2s; }
-        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1.5em; flex-wrap: wrap; gap: 1em; }
+        .header-info h1 { margin: 0; }
+        .header-info p { margin: 0; font-size: 0.9em; color: #7f8c8d; }
+        .header-nav { display: flex; align-items: center; gap: 0.5em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; text-decoration: none; text-align: center; }
+        .btn-nav { background-color: var(--primary-color); }
         .btn-logout { background-color: var(--danger-color); }
-        .btn-edit { background-color: var(--primary-color); }
-        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
-        .controls-grid { display: flex; gap: 1em; margin-bottom: 2em; align-items: center; flex-wrap: wrap; }
-        .status-message { padding: 1em; border-radius: 5px; margin-top: 1em; text-align: center; background-color: #e2e3e5; color: #383d41; }
-        .tabs { border-bottom: 2px solid #eee; margin-bottom: 1.5em; }
-        .tab-button { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 2px solid transparent; }
-        .tab-button.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
-        .content { display: none; }
-        .content.active { display: block; }
-        .sheet-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
-        .sheet-row > span { font-weight: 500; flex-basis: 50%; }
-        .student-link { cursor: pointer; color: var(--primary-color); text-decoration: underline; }
-        .sheet-row .input-group { flex-basis: 45%; text-align: right; }
-        .attendance-radios label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
-        .mark-entry-task { display: flex; justify-content: space-between; align-items: center; background: var(--light-bg); padding: 1em; border-radius: 5px; margin-bottom: 0.5em; }
-        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 1em; }
-        
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; position: relative; }
-        .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
-        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; }
-        .modal-section h4 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; margin-top: 0; }
-        
+        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 2em; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2em;
+        }
+        .dashboard-widget {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1.5em;
+        }
+        .dashboard-widget h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5em;
+        }
+
         .timetable { width: 100%; border-collapse: collapse; margin-top: 1em; }
         .timetable th, .timetable td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         .timetable th { background-color: var(--light-bg); }
+        
+        .notice-item { border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1em; }
+        .notice-item:last-child { border-bottom: none; margin-bottom: 0; }
+        .notice-item h4 { margin: 0 0 0.5em 0; display: flex; align-items: center; gap: 0.5em; }
+        .notice-item p { margin: 0; white-space: pre-wrap; color: #555; }
+        .notice-tag { font-size: 0.75em; font-weight: 600; color: white; padding: 0.2em 0.6em; border-radius: 10px; }
+        .tag-Urgent { background-color: #e67e22; }
+        .tag-Event { background-color: #9b59b6; }
+        .tag-Exam { background-color: #1abc9c; }
+        .tag-General { background-color: var(--primary-color); }
     </style>
 </head>
 <body>
     <div class="container" style="display: none;">
         <div id="app-header" class="header">
-            <div class="header-info"><h1 id="header-title">Teacher Dashboard</h1><p>Logged in as: <strong id="user-email"></strong></p></div>
-            <button id="logout-btn" class="btn btn-logout">Logout</button>
+            <div class="header-info">
+                <h1>Teacher Dashboard</h1>
+                <p>Logged in as: <strong id="user-email"></strong></p>
+            </div>
+            <nav class="header-nav">
+                <a href="teacher-attendance.html" class="btn btn-nav">Attendance</a>
+                <a href="teacher-marks.html" class="btn btn-nav">Marks Entry</a>
+                <a href="reports.html" class="btn btn-nav">Reports</a>
+                <a href="profile.html" class="btn btn-nav">My Profile</a>
+                <button id="logout-btn" class="btn btn-logout">Logout</button>
+            </nav>
         </div>
         <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
-
-        <div class="tabs">
-            <button class="tab-button active" onclick="showTab('dashboard')">Dashboard</button>
-            <button class="tab-button" onclick="showTab('attendance')">Attendance</button>
-            <button class="tab-button" id="marks-tab-btn" onclick="showTab('marks')" style="display: none;">Marks</button>
-        </div>
-
-        <div id="dashboard-content" class="content active">
-            <h2>Welcome, <span id="teacher-name-display"></span>!</h2>
-            <div id="dashboard-widgets">
+        
+        <h2>Welcome, <span id="teacher-name-display"></span>!</h2>
+        <div class="dashboard-grid">
+            <div class="dashboard-widget">
                 <h3>Today's Schedule</h3>
                 <div id="timetable-container"></div>
             </div>
-        </div>
-
-        <div id="attendance-content" class="content">
-            <h2>Attendance Management</h2>
-            <div class="controls-grid">
-                <select id="teacher-class-select-att"><option value="">-- Select Your Class --</option></select>
-                <input type="date" id="attendance-date">
-                <button id="load-attendance-btn" class="btn btn-edit">Load Students</button>
+            <div class="dashboard-widget">
+                <h3>Notice Board</h3>
+                <div id="notice-board-container"></div>
             </div>
-            <div id="attendance-sheet-container"></div>
-        </div>
-
-        <div id="marks-content" class="content">
-            <div id="marks-task-list-container"><h2>Pending Mark Entry</h2></div>
-            <div id="marks-sheet-container" style="display: none;"></div>
         </div>
     </div>
-
-    <!-- Student Profile Modal -->
-    <div id="student-profile-modal" class="modal"></div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -110,18 +108,19 @@
 
         // --- GLOBAL STATE ---
         let CURRENT_ACADEMIC_YEAR = null;
-        let currentTeacher = null, examsCache = [], mySubjectsCache = [], timetablesCache = [];
+        let currentTeacher = null;
         const timeSlots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-01:00", "02:00-03:00", "03:00-04:00"];
 
         // --- DOM ELEMENTS ---
-        const mainContainer = document.querySelector('.container'), userEmailEl = document.getElementById('user-email'), logoutBtn = document.getElementById('logout-btn');
+        const mainContainer = document.querySelector('.container');
+        const userEmailEl = document.getElementById('user-email');
+        const logoutBtn = document.getElementById('logout-btn');
         const teacherNameDisplay = document.getElementById('teacher-name-display');
-        const attClassSelect = document.getElementById('teacher-class-select-att'), attDateEl = document.getElementById('attendance-date'), loadAttBtn = document.getElementById('load-attendance-btn'), attSheetContainer = document.getElementById('attendance-sheet-container');
-        const marksTabBtn = document.getElementById('marks-tab-btn'), marksTaskListContainer = document.getElementById('marks-task-list-container'), marksSheetContainer = document.getElementById('marks-sheet-container');
-        const studentProfileModal = document.getElementById('student-profile-modal');
         const timetableContainer = document.getElementById('timetable-container');
+        const noticeBoardContainer = document.getElementById('notice-board-container');
         
         // --- AUTHENTICATION & PAGE SETUP ---
+        // This is the security gate for the page. It ensures only logged-in teachers can see it.
         auth.onAuthStateChanged(async user => {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.email).get();
@@ -132,28 +131,42 @@
                         mainContainer.style.display = 'block';
                         userEmailEl.textContent = user.email;
                         teacherNameDisplay.textContent = currentTeacher.name;
-                        await initializeTeacherDashboard();
-                    } else { handleAuthError('Your teacher profile could not be found.'); }
-                } else { handleAuthError('Access Denied. You do not have teacher permissions.'); }
-            } else { window.location.href = 'index.html'; }
+                        await initializeDashboard();
+                    } else { 
+                        handleAuthError('Your teacher profile could not be found.'); 
+                    }
+                } else { 
+                    handleAuthError('Access Denied. You do not have teacher permissions.'); 
+                }
+            } else { 
+                window.location.href = 'index.html'; 
+            }
         });
-        function handleAuthError(message) { alert(message); auth.signOut().then(() => window.location.href = 'index.html'); }
+
+        // A centralized function for handling any authentication or permission errors.
+        function handleAuthError(message) {
+            alert(message);
+            auth.signOut().then(() => window.location.href = 'index.html');
+        }
+
+        // Handles user logout.
         logoutBtn.onclick = () => auth.signOut();
         
-        async function initializeTeacherDashboard() {
+        // Main function to start the page's logic after the user is verified.
+        async function initializeDashboard() {
             try {
                 await fetchGlobalSettings();
-                listenForData();
-                attDateEl.valueAsDate = new Date();
-                loadAttBtn.onclick = loadAttendanceSheet;
-                attSheetContainer.addEventListener('click', handleSheetClick);
-                marksSheetContainer.addEventListener('click', handleSheetClick);
-                marksTaskListContainer.addEventListener('click', handleTaskListClick);
+                // Fetch all necessary data in parallel for a faster load time.
+                await Promise.all([
+                    fetchTimetableAndSubjects(),
+                    fetchNotices()
+                ]);
             } catch (error) {
                 document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ask the administrator to set the 'currentAcademicYear' in the system settings.</p>`;
             }
         }
         
+        // Fetches the single source of truth for the academic year from Firestore.
         async function fetchGlobalSettings() {
             const settingsRef = db.collection('settings').doc('global');
             const doc = await settingsRef.get();
@@ -162,139 +175,109 @@
             document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
         }
 
-        // --- UI CONTROL ---
-        function showTab(tabName) { document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active'); document.querySelectorAll('.content').forEach(c => c.classList.remove('active')); document.getElementById(`${tabName}-content`).classList.add('active'); }
-        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
-        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        // --- DASHBOARD WIDGETS ---
         
-        // --- DATA LOADING ---
-        function listenForData() {
-            db.collection('exams').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { examsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); });
-            db.collection('subjects').where('teacherId', '==', currentTeacher.id).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { mySubjectsCache = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); renderMarksEntryTaskList(); populateClassDropdowns(); renderDailyTimetable(); });
-            db.collection('timetables').where('academicYear', '==', CURRENT_ACADEMIC_YEAR).onSnapshot(snap => { timetablesCache = snap.docs.map(doc => doc.data()); renderDailyTimetable(); });
-        }
-        
-        function populateClassDropdowns() {
-            const uniqueClasses = [...new Set(mySubjectsCache.map(s => s.className))].sort((a,b) => Number(a) - Number(b));
-            let classOptions = '<option value="">-- Select Your Class --</option>';
-            uniqueClasses.forEach(c => classOptions += `<option value="${c}">${c}</option>`);
-            attClassSelect.innerHTML = classOptions;
+        // Fetches both the timetables and the subjects assigned to this teacher.
+        async function fetchTimetableAndSubjects() {
+            timetableContainer.innerHTML = "<p>Loading your schedule...</p>";
+            if (!currentTeacher || !CURRENT_ACADEMIC_YEAR) return;
+
+            // ** NO INDEX REQUIRED **
+            // Step 1: Fetch all subjects assigned to this teacher with a simple query.
+            const subjectsSnap = await db.collection('subjects').where('teacherId', '==', currentTeacher.id).get();
+            
+            // Step 2: Filter the results in JavaScript to get subjects for the current year.
+            const mySubjects = subjectsSnap.docs
+                .map(doc => doc.data())
+                .filter(sub => sub.academicYear === CURRENT_ACADEMIC_YEAR || !sub.academicYear); // Backward compatible
+
+            const myClasses = [...new Set(mySubjects.map(s => s.className))];
+
+            if (myClasses.length === 0) {
+                timetableContainer.innerHTML = "<p>You are not assigned to any classes for this academic year.</p>";
+                return;
+            }
+
+            // ** NO INDEX REQUIRED **
+            // Step 1: Fetch all timetables with a simple query.
+            const timetablesSnap = await db.collection('timetables').get();
+
+            // Step 2: Filter the results in JavaScript for the current year.
+            const allTimetables = timetablesSnap.docs
+                .map(doc => doc.data())
+                .filter(tt => tt.academicYear === CURRENT_ACADEMIC_YEAR || !tt.academicYear); // Backward compatible
+            
+            renderDailyTimetable(mySubjects, allTimetables);
         }
 
-        // --- DASHBOARD WIDGETS ---
-        function renderDailyTimetable() {
-            if (mySubjectsCache.length === 0 || timetablesCache.length === 0) { timetableContainer.innerHTML = "<p>Your daily schedule will appear here once timetables are set by the admin.</p>"; return; }
+        // Renders the timetable for the current day.
+        function renderDailyTimetable(mySubjects, allTimetables) {
             const today = new Date().toLocaleString('en-us', {weekday: 'long'}).toLowerCase();
-            const myClasses = mySubjectsCache.map(s => s.className);
+            const myClasses = mySubjects.map(s => s.className);
             let dailySchedule = [];
-            timetablesCache.filter(tt => myClasses.includes(tt.className)).forEach(timetable => {
+            
+            // Filter all timetables to find just the ones for the teacher's classes.
+            allTimetables.filter(tt => myClasses.includes(tt.className)).forEach(timetable => {
+                // Check if there's a schedule for today.
                 if (timetable.schedule && timetable.schedule[today]) {
+                    // Go through each period of the day.
                     timetable.schedule[today].forEach((subjectName, periodIndex) => {
-                        if (subjectName && mySubjectsCache.some(s => s.className === timetable.className && s.subjectName === subjectName)) {
+                        // Check if the subject in the timetable is one that this teacher actually teaches for that class.
+                        if (subjectName && mySubjects.some(s => s.className === timetable.className && s.subjectName === subjectName)) {
                             dailySchedule.push({ time: timeSlots[periodIndex], className: timetable.className, subject: subjectName });
                         }
                     });
                 }
             });
-            if (dailySchedule.length === 0) { timetableContainer.innerHTML = "<p>You have no classes scheduled for today.</p>"; return; }
+
+            if (dailySchedule.length === 0) {
+                timetableContainer.innerHTML = "<p>You have no classes scheduled for today.</p>";
+                return;
+            }
+
+            // Sort by time and render the HTML table.
             dailySchedule.sort((a,b) => a.time.localeCompare(b.time));
             let tableHtml = '<table class="timetable"><thead><tr><th>Time</th><th>Class</th><th>Subject</th></tr></thead><tbody>';
-            dailySchedule.forEach(period => { tableHtml += `<tr><td>${period.time}</td><td>${period.className}</td><td>${period.subject}</td></tr>`; });
+            dailySchedule.forEach(period => {
+                tableHtml += `<tr><td>${period.time}</td><td>${period.className}</td><td>${period.subject}</td></tr>`;
+            });
             tableHtml += `</tbody></table>`;
             timetableContainer.innerHTML = tableHtml;
         }
 
-        // --- ATTENDANCE LOGIC (FULLY FUNCTIONAL & INDEX-FREE) ---
-        async function loadAttendanceSheet() {
-            const selectedClass = attClassSelect.value;
-            const selectedDate = attDateEl.value;
-            if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; }
-            attSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`;
+        // Fetches and displays the latest school-wide notices.
+        async function fetchNotices() {
+            noticeBoardContainer.innerHTML = "<p>Loading notices...</p>";
+            const now = new Date();
             
-            // ** CRITICAL FIX **: The correct query for active students in the current academic year. No index needed.
-            const studentSnap = await db.collection('students')
-                .where('class', '==', Number(selectedClass))
-                .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
-                .where('status', '==', 'active')
+            // ** NO INDEX REQUIRED **
+            // Step 1: Fetch all notices ordered by publish date (a default index).
+            const querySnap = await db.collection('notices')
+                .orderBy('publishedAt', 'desc')
+                .limit(20) // Get the latest 20 to avoid fetching too much data.
                 .get();
-                
-            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => a.name.localeCompare(b.name));
-            if (students.length === 0) { attSheetContainer.innerHTML = `<p>No active students found in Class ${selectedClass} for the current academic year.</p>`; return; }
 
-            const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`;
-            const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get();
-            const records = attendanceDoc.exists ? attendanceDoc.data().records : {};
-            let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3>`;
-            students.forEach(s => {
-                const status = records[s.id] || 'present';
-                sheetHtml += `<div class="sheet-row" data-student-id="${s.id}"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group attendance-radios"><input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status==='present'?'checked':''}> <label for="p_${s.id}">Present</label><input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status==='absent'?'checked':''}> <label for="a_${s.id}">Absent</label></div></div>`;
-            });
-            sheetHtml += `<button id="save-att-btn" class="btn btn-success" style="margin-top:1.5em; margin-left:0;">Save Attendance</button>`;
-            attSheetContainer.innerHTML = sheetHtml;
-            document.getElementById('save-att-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate);
+            // Step 2: Filter the results in JavaScript.
+            const notices = querySnap.docs
+                .map(doc => doc.data())
+                .filter(notice => {
+                    const isForMe = notice.audience === 'everyone' || notice.audience === 'teachers';
+                    const isExpired = notice.expiryDate && notice.expiryDate.toDate() < now;
+                    return isForMe && !isExpired;
+                })
+                .slice(0, 5); // Show only the top 5 relevant notices.
+            
+            if (notices.length === 0) {
+                noticeBoardContainer.innerHTML = "<p>No recent notices.</p>";
+                return;
+            }
+            noticeBoardContainer.innerHTML = notices.map(notice => {
+                return `<div class="notice-item">
+                            <h4><span class="notice-tag tag-${notice.type}">${notice.type}</span>${notice.title}</h4>
+                            <p>${notice.message}</p>
+                        </div>`
+            }).join('');
         }
-        async function saveAttendance(docId, aClass, aDate) {
-            const saveBtn = document.getElementById('save-att-btn');
-            saveBtn.disabled = true;
-            const records = {};
-            document.querySelectorAll('#attendance-sheet-container .sheet-row').forEach(row => {
-                records[row.dataset.studentId] = document.querySelector(`input[name="s_${row.dataset.studentId}"]:checked`).value;
-            });
-            try { await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records, academicYear: CURRENT_ACADEMIC_YEAR }); alert('Attendance saved!'); } 
-            catch(err) { alert(`Error: ${err.message}`); } finally { saveBtn.disabled = false; }
-        }
-        
-        // --- MARKS ENTRY LOGIC (FULLY FUNCTIONAL & INDEX-FREE) ---
-        function renderMarksEntryTaskList() { if (examsCache.length === 0 || mySubjectsCache.length === 0) { marksTaskListContainer.innerHTML = '<h2>Pending Mark Entry</h2><p>No mark entry tasks available.</p>'; marksTabBtn.style.display = 'none'; return; } marksTabBtn.style.display = 'inline-block'; let html = '<h2>Pending Mark Entry</h2>'; let taskCount = 0; examsCache.forEach(exam => { let examHtml = ''; mySubjectsCache.forEach(subject => { const marksKey = `CLASS_${subject.className}_${subject.subjectName.replace(/\s+/g, '_').toUpperCase()}`; if (exam.marksStructure[marksKey]) { taskCount++; examHtml += `<div class="mark-entry-task"><span><strong>Class ${subject.className}</strong> - ${subject.subjectName}</span><button class="btn btn-sm btn-edit enter-marks-btn" data-exam-id="${exam.id}" data-class-name="${subject.className}" data-subject-name="${subject.subjectName}">Enter Marks</button></div>`; } }); if (examHtml) { html += `<div class="exam-group"><h3>${exam.examName}</h3>${examHtml}</div>`; } }); if (taskCount === 0) { html += '<p>No subjects assigned to you are part of the created exams.</p>'; } marksTaskListContainer.innerHTML = html; }
-        function handleTaskListClick(event) { if (event.target.classList.contains('enter-marks-btn')) { const { examId, className, subjectName } = event.target.dataset; loadMarksEntrySheet(examId, className, subjectName); } }
-        async function loadMarksEntrySheet(examId, className, subjectName) {
-            marksTaskListContainer.style.display = 'none'; marksSheetContainer.style.display = 'block'; marksSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`;
-            const selectedExam = examsCache.find(e => e.id === examId);
-            const marksKey = `CLASS_${className}_${subjectName.replace(/\s+/g, '_').toUpperCase()}`;
-            const maxMarks = selectedExam.marksStructure[marksKey];
-            const studentSnap = await db.collection('students').where('class', '==', Number(className)).where('academicYear', '==', CURRENT_ACADEMIC_YEAR).where('status', '==', 'active').get();
-            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => a.name.localeCompare(b.name));
-            if (students.length === 0) { marksSheetContainer.innerHTML = `<p>No active students in this class.</p><button id="back-to-list-btn" class="btn btn-edit" style="margin-left:0;">Back to List</button>`; document.getElementById('back-to-list-btn').onclick = () => { marksSheetContainer.style.display = 'none'; marksSheetContainer.innerHTML = ''; marksTaskListContainer.style.display = 'block'; }; return; }
-            const studentIds = students.map(s => s.id);
-            const marksPromises = studentIds.map(id => db.collection('marks').doc(`${examId}_${id}`).get());
-            const marksDocs = await Promise.all(marksPromises);
-            const marksMap = new Map(marksDocs.filter(doc => doc.exists).map(doc => [doc.id.split('_')[1], doc.data().marks]));
-            let sheetHtml = `<h3>Marks for ${subjectName} (Max: ${maxMarks})</h3><p><strong>Exam:</strong> ${selectedExam.examName} | <strong>Class:</strong> ${className}</p>`;
-            students.forEach(s => {
-                const existingMarks = marksMap.get(s.id);
-                let currentMark = '';
-                if(existingMarks) { const foundKey = Object.keys(existingMarks).find(key => key.toLowerCase() === subjectName.toLowerCase()); if(foundKey) currentMark = existingMarks[foundKey]; }
-                sheetHtml += `<div class="sheet-row"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group"><input type="number" min="0" max="${maxMarks}" value="${currentMark}" placeholder="N/A"></div></div>`;
-            });
-            sheetHtml += `<div style="margin-top:1.5em; display:flex; gap:1em;"><button id="save-marks-btn" class="btn btn-success" style="margin-left:0;">Save Marks</button><button id="back-to-list-btn" class="btn btn-edit">Back to List</button></div>`;
-            marksSheetContainer.innerHTML = sheetHtml;
-            document.getElementById('save-marks-btn').onclick = () => saveMarks(examId, className, subjectName);
-            document.getElementById('back-to-list-btn').onclick = () => { marksSheetContainer.style.display = 'none'; marksSheetContainer.innerHTML = ''; marksTaskListContainer.style.display = 'block'; };
-        }
-        async function saveMarks(examId, className, subjectName) {
-            const saveButton = document.getElementById('save-marks-btn');
-            saveButton.textContent = 'Saving...'; saveButton.disabled = true;
-            const batch = db.batch();
-            const selectedExam = examsCache.find(e => e.id === examId);
-            document.querySelectorAll('#marks-sheet-container .sheet-row').forEach(row => {
-                const studentId = row.querySelector('.student-link').dataset.studentId;
-                const studentName = row.querySelector('.student-link').textContent.split(' (')[0];
-                const marksValue = row.querySelector('input[type="number"]').value;
-                const docRef = db.collection('marks').doc(`${examId}_${studentId}`);
-                const normalizedSubjectName = subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase();
-                let marksUpdate;
-                if (marksValue !== '') { marksUpdate = { [normalizedSubjectName]: parseInt(marksValue) }; } 
-                else { marksUpdate = { [normalizedSubjectName]: firebase.firestore.FieldValue.delete() }; }
-                batch.set(docRef, { examId: examId, examName: selectedExam.examName, studentId, studentName, class: Number(className), academicYear: CURRENT_ACADEMIC_YEAR, marks: marksUpdate }, { merge: true });
-            });
-            try { await batch.commit(); alert('Marks saved successfully!'); }
-            catch (error) { alert(`Error saving marks: ${error.message}`); }
-            finally { saveButton.textContent = 'Save Marks'; saveButton.disabled = false; }
-        }
-
-        // --- STUDENT PROFILE MODAL ---
-        function handleSheetClick(event) { if (event.target.classList.contains('student-link') && event.target.dataset.studentId) { openStudentProfileModal(event.target.dataset.studentId); } }
-        async function openStudentProfileModal(studentId) { studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><div class="status-message">Loading student profile...</div></div>`; openModal('student-profile-modal'); try { const studentDoc = await db.collection('students').doc(studentId).get(); if (!studentDoc.exists) throw new Error('Student not found.'); const student = studentDoc.data(); const attendanceQuery = await db.collection('attendance').where('academicYear', '==', student.academicYear).get(); const totalDays = attendanceQuery.docs.filter(doc => doc.data().records && doc.data().records[studentId]).length; const presentDays = attendanceQuery.docs.filter(doc => doc.data().records && doc.data().records[studentId] === 'present').length; const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0; const marksQuery = await db.collection('marks').where('studentId', '==', studentId).where('academicYear', '==', student.academicYear).get(); let marksHtml = 'No marks entered yet.'; if (!marksQuery.empty) { marksHtml = '<ul>'; marksQuery.forEach(doc => { const markData = doc.data(); for (const subject in markData.marks) { marksHtml += `<li><strong>${markData.examName} - ${subject}:</strong> ${markData.marks[subject]}</li>`; } }); marksHtml += '</ul>'; } studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><h2>${student.name}</h2><p><strong>Class:</strong> ${student.class} | <strong>Roll No:</strong> ${student.rollNo}</p><div class="modal-grid"><div class="modal-section"><h4>Attendance Summary</h4><p>${attendancePercentage}% (${presentDays} of ${totalDays} days)</p></div><div class="modal-section"><h4>Recent Marks</h4>${marksHtml}</div></div></div>`; } catch(err) { studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><p>Error loading profile: ${err.message}</p></div>`; } }
     </script>
 </body>
 </html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance - Teacher Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #3498db; --danger-color: #e74c3c; --success-color: #27ae60; --light-bg: #f4f7f9; --dark-text: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--light-bg); margin: 0; padding: 2em 0; display: flex;
+            justify-content: center; align-items: flex-start; min-height: 100vh; color: var(--dark-text);
+        }
+        .container {
+            width: 95%; max-width: 900px; background: white; padding: 2em; border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1em; margin-bottom: 1.5em; flex-wrap: wrap; gap: 1em; }
+        .header-info h1 { margin: 0; }
+        .header-info p { margin: 0; font-size: 0.9em; color: #7f8c8d; }
+        .header-nav { display: flex; align-items: center; gap: 0.5em; }
+        .btn { border: none; padding: 10px 15px; font-size: 14px; border-radius: 4px; cursor: pointer; color: white; text-decoration: none; text-align: center; }
+        .btn-nav { background-color: var(--primary-color); }
+        .btn-logout { background-color: var(--danger-color); }
+        .btn-edit { background-color: var(--primary-color); }
+        .btn-success { background-color: var(--success-color); }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .year-display { font-size: 1.2em; font-weight: bold; color: var(--primary-color); text-align: right; margin-bottom: 2em; }
+        
+        .controls-grid { display: flex; gap: 1em; margin-bottom: 2em; align-items: center; flex-wrap: wrap; }
+        .status-message { padding: 1em; border-radius: 5px; margin-top: 1em; text-align: center; background-color: #e2e3e5; color: #383d41; }
+        
+        .sheet-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #eee; }
+        .sheet-row > span { font-weight: 500; flex-basis: 50%; }
+        .student-link { cursor: pointer; color: var(--primary-color); text-decoration: underline; }
+        .sheet-row .input-group { flex-basis: 45%; text-align: right; }
+        .attendance-radios label { margin-left: 5px; margin-right: 15px; cursor: pointer; }
+        
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; position: relative; }
+        .close-btn { color: #aaa; position: absolute; top: 10px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; }
+        .modal-section h4 { border-bottom: 1px solid #eee; padding-bottom: 0.5em; margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: none;">
+        <div id="app-header" class="header">
+            <div class="header-info">
+                <h1>Attendance Management</h1>
+                <p>Logged in as: <strong id="user-email"></strong></p>
+            </div>
+            <nav class="header-nav">
+                <a href="teacher.html" class="btn btn-nav">Dashboard</a>
+                <a href="teacher-marks.html" class="btn btn-nav">Marks Entry</a>
+                <a href="reports.html" class="btn btn-nav">Reports</a>
+                <a href="profile.html" class="btn btn-nav">My Profile</a>
+                <button id="logout-btn" class="btn btn-logout">Logout</button>
+            </nav>
+        </div>
+        <div class="year-display">Current Academic Year: <span id="current-year-display">Loading...</span></div>
+
+        <div class="controls-grid">
+            <select id="teacher-class-select-att"><option value="">-- Select Your Class --</option></select>
+            <input type="date" id="attendance-date">
+            <button id="load-attendance-btn" class="btn btn-edit">Load Students</button>
+        </div>
+        <div id="attendance-sheet-container"></div>
+    </div>
+
+    <!-- Student Profile Modal -->
+    <div id="student-profile-modal" class="modal"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <script>
+        // --- CONFIG & INITIALIZATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
+            authDomain: "collage-management-696b3.firebaseapp.com",
+            projectId: "collage-management-696b3",
+            storageBucket: "collage-management-696b3.firebasestorage.app",
+            messagingSenderId: "489625618034",
+            appId: "1:489625618034:web:f6ba20e80715f70e4264eb",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // --- GLOBAL STATE ---
+        let CURRENT_ACADEMIC_YEAR = null;
+        let currentTeacher = null;
+
+        // --- DOM ELEMENTS ---
+        const mainContainer = document.querySelector('.container');
+        const userEmailEl = document.getElementById('user-email');
+        const logoutBtn = document.getElementById('logout-btn');
+        const attClassSelect = document.getElementById('teacher-class-select-att');
+        const attDateEl = document.getElementById('attendance-date');
+        const loadAttBtn = document.getElementById('load-attendance-btn');
+        const attSheetContainer = document.getElementById('attendance-sheet-container');
+        const studentProfileModal = document.getElementById('student-profile-modal');
+        
+        // --- AUTHENTICATION & PAGE SETUP ---
+        // Security gate for the page. Ensures only logged-in teachers can see it.
+        auth.onAuthStateChanged(async user => {
+            if (user) {
+                const userDoc = await db.collection('users').doc(user.email).get();
+                if (userDoc.exists && userDoc.data().role === 'teacher') {
+                    const teacherSnap = await db.collection('teachers').where('email', '==', user.email).limit(1).get();
+                    if (!teacherSnap.empty) {
+                        currentTeacher = { id: teacherSnap.docs[0].id, ...teacherSnap.docs[0].data() };
+                        mainContainer.style.display = 'block';
+                        userEmailEl.textContent = user.email;
+                        await initializePage();
+                    } else { 
+                        handleAuthError('Your teacher profile could not be found.'); 
+                    }
+                } else { 
+                    handleAuthError('Access Denied. You do not have teacher permissions.'); 
+                }
+            } else { 
+                window.location.href = 'index.html'; 
+            }
+        });
+
+        // Centralized function for handling auth errors.
+        function handleAuthError(message) {
+            alert(message);
+            auth.signOut().then(() => window.location.href = 'index.html');
+        }
+
+        // Handles user logout.
+        logoutBtn.onclick = () => auth.signOut();
+        
+        // Main function to start the page's logic after user is verified.
+        async function initializePage() {
+            try {
+                await fetchGlobalSettings();
+                await populateClassDropdowns();
+                attDateEl.valueAsDate = new Date();
+                loadAttBtn.onclick = loadAttendanceSheet;
+                attSheetContainer.addEventListener('click', handleSheetClick);
+            } catch (error) {
+                document.body.innerHTML = `<h1>Critical Error</h1><p>${error.message}</p><p>Please ask the administrator to set the 'currentAcademicYear' in the system settings.</p>`;
+            }
+        }
+        
+        // Fetches the single source of truth for the academic year.
+        async function fetchGlobalSettings() {
+            const settingsRef = db.collection('settings').doc('global');
+            const doc = await settingsRef.get();
+            if (!doc.exists || !doc.data().currentAcademicYear) { throw new Error("Global settings not found."); }
+            CURRENT_ACADEMIC_YEAR = doc.data().currentAcademicYear;
+            document.getElementById('current-year-display').textContent = CURRENT_ACADEMIC_YEAR;
+        }
+
+        // --- UI CONTROL & DROPDOWNS ---
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        
+        // Populates the class dropdown with ONLY the classes this teacher is assigned to.
+        async function populateClassDropdowns() {
+            if (!currentTeacher || !CURRENT_ACADEMIC_YEAR) return;
+            // ** NO INDEX REQUIRED **
+            // 1. Fetch all subjects for this teacher.
+            const subjectsSnap = await db.collection('subjects').where('teacherId', '==', currentTeacher.id).get();
+            // 2. Filter them in JS for the current year and get unique class names.
+            const myClasses = [...new Set(
+                subjectsSnap.docs
+                    .map(doc => doc.data())
+                    .filter(sub => sub.academicYear === CURRENT_ACADEMIC_YEAR || !sub.academicYear)
+                    .map(s => s.className)
+            )].sort((a,b) => a-b);
+            
+            let classOptions = '<option value="">-- Select Your Class --</option>';
+            myClasses.forEach(c => classOptions += `<option value="${c}">${c}</option>`);
+            attClassSelect.innerHTML = classOptions;
+        }
+
+        // --- ATTENDANCE LOGIC (FULLY FUNCTIONAL) ---
+        // Loads the list of students for the selected class and date.
+        async function loadAttendanceSheet() {
+            const selectedClass = attClassSelect.value;
+            const selectedDate = attDateEl.value;
+            if (!selectedClass || !selectedDate) { alert('Please select a class and a date.'); return; }
+            attSheetContainer.innerHTML = `<div class="status-message">Loading students...</div>`;
+            
+            // ** CRITICAL FIX: The query must filter by academic year AND class **
+            const studentSnap = await db.collection('students')
+                .where('class', '==', Number(selectedClass))
+                .where('academicYear', '==', CURRENT_ACADEMIC_YEAR)
+                .where('status', '==', 'active')
+                .get();
+                
+            const students = studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => a.name.localeCompare(b.name));
+            if (students.length === 0) { attSheetContainer.innerHTML = `<p>No active students found in Class ${selectedClass} for the current academic year.</p>`; return; }
+
+            const attendanceDocId = `CLASS_${selectedClass}_DATE_${selectedDate}`;
+            const attendanceDoc = await db.collection('attendance').doc(attendanceDocId).get();
+            const records = attendanceDoc.exists ? attendanceDoc.data().records : {};
+            let sheetHtml = `<h3>Attendance for Class ${selectedClass} on ${selectedDate}</h3>`;
+            students.forEach(s => {
+                const status = records[s.id] || 'present';
+                sheetHtml += `<div class="sheet-row"><span class="student-link" data-student-id="${s.id}">${s.name} (${s.rollNo})</span><div class="input-group attendance-radios"><input type="radio" id="p_${s.id}" name="s_${s.id}" value="present" ${status==='present'?'checked':''}> <label for="p_${s.id}">Present</label><input type="radio" id="a_${s.id}" name="s_${s.id}" value="absent" ${status==='absent'?'checked':''}> <label for="a_${s.id}">Absent</label></div></div>`;
+            });
+            sheetHtml += `<button id="save-att-btn" class="btn btn-success" style="margin-top:1.5em; margin-left:0;">Save Attendance</button>`;
+            attSheetContainer.innerHTML = sheetHtml;
+            document.getElementById('save-att-btn').onclick = () => saveAttendance(attendanceDocId, selectedClass, selectedDate);
+        }
+
+        // Saves the attendance data to Firestore.
+        async function saveAttendance(docId, aClass, aDate) {
+            const saveBtn = document.getElementById('save-att-btn');
+            saveBtn.disabled = true;
+            const records = {};
+            document.querySelectorAll('#attendance-sheet-container .sheet-row').forEach(row => {
+                const studentId = row.querySelector('.student-link').dataset.studentId;
+                records[studentId] = document.querySelector(`input[name="s_${studentId}"]:checked`).value;
+            });
+            try {
+                await db.collection('attendance').doc(docId).set({ class: aClass, date: aDate, records, academicYear: CURRENT_ACADEMIC_YEAR });
+                alert('Attendance saved!');
+            } catch(err) {
+                alert(`Error: ${err.message}`);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+        
+        // --- STUDENT PROFILE MODAL ---
+        // Handles clicks on student names to open the profile modal.
+        function handleSheetClick(event) {
+            if (event.target.classList.contains('student-link') && event.target.dataset.studentId) {
+                openStudentProfileModal(event.target.dataset.studentId);
+            }
+        }
+        // Fetches all relevant data for a student and displays it in a modal.
+        async function openStudentProfileModal(studentId) {
+            studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><div class="status-message">Loading student profile...</div></div>`;
+            openModal('student-profile-modal');
+            try {
+                const studentDoc = await db.collection('students').doc(studentId).get();
+                if (!studentDoc.exists) throw new Error('Student not found.');
+                const student = studentDoc.data();
+                
+                const [attendanceQuery, marksQuery] = await Promise.all([
+                    db.collection('attendance').where('academicYear', '==', student.academicYear).get(),
+                    db.collection('marks').where('studentId', '==', studentId).where('academicYear', '==', student.academicYear).get()
+                ]);
+
+                const totalDays = attendanceQuery.docs.filter(doc => doc.data().records && doc.data().records[studentId]).length;
+                const presentDays = attendanceQuery.docs.filter(doc => doc.data().records && doc.data().records[studentId] === 'present').length;
+                const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+                
+                let marksHtml = 'No marks entered yet.';
+                if (!marksQuery.empty) {
+                    marksHtml = '<ul>';
+                    marksQuery.forEach(doc => { const markData = doc.data(); for (const subject in markData.marks) { marksHtml += `<li><strong>${markData.examName} - ${subject}:</strong> ${markData.marks[subject]}</li>`; } });
+                    marksHtml += '</ul>';
+                }
+                studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><h2>${student.name}</h2><p><strong>Class:</strong> ${student.class} | <strong>Roll No:</strong> ${student.rollNo}</p><div class="modal-grid"><div class="modal-section"><h4>Attendance Summary</h4><p>${attendancePercentage}% (${presentDays} of ${totalDays} days)</p></div><div class="modal-section"><h4>Recent Marks</h4>${marksHtml}</div></div></div>`;
+            } catch(err) {
+                studentProfileModal.innerHTML = `<div class="modal-content"><span class="close-btn" onclick="closeModal('student-profile-modal')">&times;</span><p>Error loading profile: ${err.message}</p></div>`;
+            }
+        }
+    </script>
+</body>
+</html>

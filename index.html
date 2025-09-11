@@ -185,29 +185,40 @@
 
             if (userDoc.exists) {
                 const role = userDoc.data().role;
-                if (role === 'student') { window.location.href = 'student.html'; } 
-                else if (role === 'teacher') { window.location.href = 'teacher.html'; } 
-                else if (role === 'accountant') { window.location.href = 'manage-fees.html'; }
-                else if (role === 'principal') { window.location.href = 'reports.html'; }
-                else {
-                    // User has a document but no valid role. Treat as pending.
-                    window.location.href = 'pending.html';
+                if (role === 'student') {
+                    window.location.href = 'student.html';
+                } else if (role === 'teacher') {
+                    window.location.href = 'teacher.html';
+                } else if (role === 'accountant') {
+                    window.location.href = 'manage-fees.html';
+                } else if (role === 'principal') {
+                    window.location.href = 'reports.html';
+                } else {
+                    handlePendingUser('Your account role is not configured correctly. Please contact an administrator.', user);
                 }
             } else {
-                // This is a new user or an existing pending user.
                 await db.collection('pending_users').doc(user.email).set({ 
                     email: user.email, 
                     createdAt: firebase.firestore.FieldValue.serverTimestamp() 
                 }, { merge: true });
+                
                 window.location.href = 'pending.html';
             }
+        }
+
+        function handlePendingUser(message, user) {
+            authErrorEl.textContent = message;
+            authErrorEl.style.display = 'block';
+            if (user) {
+                auth.signOut();
+            }
+            setButtonLoading(false);
         }
 
         function setButtonLoading(isLoading) {
             const spinner = loginBtn.querySelector('.spinner');
             if (isLoading) {
                 loginBtn.disabled = true;
-                loginBtnText.textContent = 'Signing in...';
                 if (!spinner) {
                     const newSpinner = document.createElement('div');
                     newSpinner.className = 'spinner';

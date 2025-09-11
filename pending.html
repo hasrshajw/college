@@ -6,39 +6,106 @@
     <title>Account Pending - College Management Portal</title>
     <style>
         :root {
-            --primary-color: #3498db; --danger-color: #e74c3c; --dark-text: #2c3e50; --light-bg: #f4f7f9;
+            --primary-color: #3498db; --danger-color: #e74c3c; --warning-color: #f39c12;
+            --light-bg: #f4f7f9; --dark-text: #2c3e50; --light-text: #7f8c8d;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--light-bg); margin: 0; padding: 2em; display: flex;
-            justify-content: center; align-items: center; min-height: 100vh; color: var(--dark-text);
+            background-color: var(--light-bg);
+            margin: 0;
+            padding: 2em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--dark-text);
         }
         .container {
-            width: 95%; max-width: 600px; background: white; padding: 3em; border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); text-align: center;
+            width: 95%;
+            max-width: 600px;
+            background: white;
+            padding: 3em;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            border-top: 5px solid var(--warning-color);
+            animation: fadeIn 0.5s ease-in-out;
         }
-        h1 { color: var(--dark-text); }
-        p { color: #7f8c8d; line-height: 1.6; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .icon {
+            color: var(--warning-color);
+            margin-bottom: 1em;
+        }
+        h1 {
+            color: var(--dark-text);
+            margin-top: 0;
+        }
+        p {
+            color: var(--light-text);
+            line-height: 1.6;
+        }
+        .user-email {
+            font-weight: bold;
+            color: var(--dark-text);
+            background-color: var(--light-bg);
+            padding: 0.5em 1em;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 1em 0;
+        }
         .logout-btn {
-            background-color: var(--primary-color); color: white; border: none; padding: 12px 24px;
-            font-size: 16px; border-radius: 4px; cursor: pointer; margin-top: 1.5em;
+            background-color: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 1.5em;
+            transition: background-color 0.3s;
+        }
+        .logout-btn:hover {
+            background-color: #c0392b;
+        }
+        .timer-text {
+            margin-top: 2em;
+            font-size: 0.8em;
+            color: #ccc;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+
+    <div class="container" style="display: none;">
+        <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+        </div>
         <h1>Account Pending Approval</h1>
         <p>
-            Thank you for signing in. Your account has been registered with the system but has not yet been assigned a role.
+            Your account with the email address below has been successfully created but requires an administrator to assign a role.
         </p>
+        <div class="user-email" id="user-email-display">Loading...</div>
         <p>
-            Please contact the school administrator to have your account activated. You will be able to log in once your role has been assigned.
+            Please contact the school administrator and ask them to activate your account.
         </p>
-        <button id="logout-btn" class="logout-btn">Sign Out</button>
+        <button id="logout-btn" class="logout-btn">Logout</button>
+        <p class="timer-text">
+            You will be automatically logged out in <span id="timer-countdown">120</span> seconds.
+        </p>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyAtDp9cTE1fYFM2PZjgQ1r1YBoSOcwhIS8",
@@ -50,12 +117,56 @@
         };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // DOM Elements
+        const mainContainer = document.querySelector('.container');
+        const userEmailDisplay = document.getElementById('user-email-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const timerCountdown = document.getElementById('timer-countdown');
 
-        document.getElementById('logout-btn').onclick = () => {
+        // Global State
+        let countdownInterval;
+
+        // --- AUTH & INITIALIZATION ---
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // A user is logged in, show the page and start the timer.
+                mainContainer.style.display = 'block';
+                userEmailDisplay.textContent = user.email;
+                startLogoutTimer();
+            } else {
+                // No user is logged in, they shouldn't be here. Redirect to login.
+                window.location.href = 'index.html';
+            }
+        });
+
+        // Handle manual logout
+        logoutBtn.onclick = () => {
+            signOutAndRedirect();
+        };
+        
+        // --- TIMER LOGIC ---
+        function startLogoutTimer() {
+            let seconds = 120;
+            timerCountdown.textContent = seconds;
+
+            countdownInterval = setInterval(() => {
+                seconds--;
+                timerCountdown.textContent = seconds;
+                if (seconds <= 0) {
+                    signOutAndRedirect();
+                }
+            }, 1000);
+        }
+
+        // Centralized function to sign out and redirect.
+        function signOutAndRedirect() {
+            clearInterval(countdownInterval);
             auth.signOut().then(() => {
                 window.location.href = 'index.html';
             });
-        };
+        }
     </script>
 </body>
 </html>

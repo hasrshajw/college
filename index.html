@@ -131,6 +131,7 @@
     </style>
 </head>
 <body>
+
     <div class="login-wrapper">
         <div class="login-image-panel"></div>
         <div class="login-form-panel">
@@ -200,7 +201,6 @@
                 if (role === 'student') { window.location.href = 'student.html'; return; } 
                 if (role === 'teacher') { window.location.href = 'teacher.html'; return; }
                 if (role === 'accountant') { window.location.href = 'manage-fees.html'; return; }
-                
                 handlePendingUser('Your account role is not configured correctly. Please contact an administrator.');
                 return;
             }

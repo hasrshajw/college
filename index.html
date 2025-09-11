@@ -98,7 +98,9 @@
             border-top-color: #fff;
             animation: spin 1s ease-in-out infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
         .error-message {
             color: var(--danger-color);
             background-color: rgba(231, 76, 60, 0.1);
@@ -187,7 +189,6 @@
                 if (role === 'student') { window.location.href = 'student.html'; return; } 
                 if (role === 'teacher') { window.location.href = 'teacher.html'; return; }
                 if (role === 'accountant') { window.location.href = 'manage-fees.html'; return; }
-                if (role === 'principal') { window.location.href = 'reports.html'; return; }
                 
                 handlePendingUser('Your account role is not configured correctly. Please contact an administrator.');
                 return;
@@ -198,15 +199,22 @@
             
             const [studentSnap, teacherSnap] = await Promise.all([studentProfileQuery.get(), teacherProfileQuery.get()]);
 
-            if (!studentSnap.empty) {
-                await db.collection('users').doc(user.email).set({ role: 'student' });
-                window.location.href = 'student.html';
-                return;
-            }
+            const batch = db.batch();
+            let roleAssigned = false;
 
-            if (!teacherSnap.empty) {
-                await db.collection('users').doc(user.email).set({ role: 'teacher' });
-                window.location.href = 'teacher.html';
+            if (!studentSnap.empty) {
+                batch.set(db.collection('users').doc(user.email), { role: 'student' });
+                roleAssigned = true;
+            } else if (!teacherSnap.empty) {
+                batch.set(db.collection('users').doc(user.email), { role: 'teacher' });
+                roleAssigned = true;
+            }
+            
+            if (roleAssigned) {
+                batch.delete(db.collection('pending_users').doc(user.email));
+                await batch.commit();
+                // Re-run the check now that the role is created.
+                await checkUserRoleAndRedirect(user);
                 return;
             }
 
